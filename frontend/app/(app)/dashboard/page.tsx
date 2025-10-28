@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import apiClient from '@/lib/apiClient'
 import {
   Card,
@@ -19,6 +21,7 @@ import {
 } from "@/components/ui/table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
+import { Button } from "@/components/ui/button"
 
 interface AuthenticatedMember {
   user: {
@@ -40,6 +43,26 @@ export default function DashboardPage() {
   const [data, setData] = useState<AuthenticatedMember | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([])
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const router = useRouter()
+  const supabase = createClient()
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        setError(`Logout failed: ${error.message}`)
+      } else {
+        // Redirect to login page
+        router.push('/login')
+      }
+    } catch (err) {
+      setError(`Logout failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -91,6 +114,17 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <Button 
+          onClick={handleLogout} 
+          disabled={isLoggingOut}
+          variant="outline"
+        >
+          {isLoggingOut ? 'Logging out...' : 'Logout'}
+        </Button>
+      </div>
+      
       <Card>
         <CardHeader>
           <CardTitle>Dashboard</CardTitle>
