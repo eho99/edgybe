@@ -1,6 +1,6 @@
 import uuid
 import enum
-from sqlalchemy import Column, DateTime, ForeignKey, Enum, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, Enum, UniqueConstraint, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -22,7 +22,10 @@ class OrganizationMember(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False)
+    # Allow null user_id for email-based invitations before the user signs up
+    user_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=True)
+    # Store invite email for pending invitations until linked to a real user
+    invite_email = Column(String, nullable=True, index=True)
     
     role = Column(Enum(OrgRole), nullable=False, default=OrgRole.staff)
     status = Column(Enum(MemberStatus), nullable=False, default=MemberStatus.active)
