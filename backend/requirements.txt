@@ -1,0 +1,12 @@
+# Backend dependencies for B2B SaaS MVP
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+alembic
+python-dotenv
+supabase
+supabase_auth
+pydantic[email]
+python-jose[cryptography]
+
