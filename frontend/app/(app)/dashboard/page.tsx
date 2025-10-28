@@ -12,14 +12,33 @@ interface AuthenticatedMember {
   role: string
 }
 
+interface OrganizationMembership {
+  org_id: string
+  role: string
+  organization_name: string
+  joined_at: string
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<AuthenticatedMember | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [memberships, setMemberships] = useState<OrganizationMembership[]>([])
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const orgId = "..." 
+        // First, get user's organization memberships
+        const membershipsResponse = await apiClient('/api/v1/organizations/my-memberships')
+        const membershipsData = await membershipsResponse.json()
+        setMemberships(membershipsData)
+        
+        if (membershipsData.length === 0) {
+          setError('You are not a member of any organizations')
+          return
+        }
+        
+        // Use the first organization (you could add logic to select a specific one)
+        const orgId = membershipsData[0].org_id
         
         const response = await apiClient(`/api/v1/organizations/${orgId}/protected-data`)
         const result = await response.json()
@@ -71,7 +90,36 @@ export default function DashboardPage() {
               <p className="text-gray-600 mb-2">
                 <strong>Organization ID:</strong> {data.org_id}
               </p>
+              {memberships.length > 0 && (
+                <p className="text-gray-600 mb-2">
+                  <strong>Organization:</strong> {memberships.find(m => m.org_id === data.org_id)?.organization_name}
+                </p>
+              )}
             </div>
+
+            {memberships.length > 1 && (
+              <div className="bg-white shadow rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Organizations</h3>
+                <div className="space-y-3">
+                  {memberships.map((membership) => (
+                    <div key={membership.org_id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium text-gray-900">{membership.organization_name}</h4>
+                          <p className="text-sm text-gray-600">Role: {membership.role}</p>
+                          <p className="text-sm text-gray-500">Joined: {new Date(membership.joined_at).toLocaleDateString()}</p>
+                        </div>
+                        {membership.org_id === data.org_id && (
+                          <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="bg-white shadow rounded-lg p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Raw Data</h3>
