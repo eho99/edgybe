@@ -19,10 +19,10 @@ def test_organization_schema():
     assert org_create.name == "New Org"
 
 def test_user_invite_schema():
-    invite_data = {"email": "test@example.com", "role": OrgRole.member}
+    invite_data = {"email": "test@example.com", "role": OrgRole.staff}
     invite = UserInvite(**invite_data)
     assert invite.email == "test@example.com"
-    assert invite.role == OrgRole.member
+    assert invite.role == OrgRole.staff
 
 def test_supabase_user_schema():
     user_data = {"id": uuid.uuid4(), "email": "supabase@example.com"}
@@ -43,10 +43,24 @@ def test_authenticated_member_schema():
 def test_organization_membership_schema():
     membership_data = {
         "org_id": uuid.uuid4(),
-        "role": OrgRole.viewer,
+        "role": OrgRole.student,
         "organization_name": "Test Org",
         "joined_at": datetime.now()
     }
     membership = OrganizationMembership(**membership_data)
     assert membership.organization_name == "Test Org"
-    assert membership.role == OrgRole.viewer
+    assert membership.role == OrgRole.student
+
+def test_all_role_types():
+    """Test that all new role types can be used in schemas."""
+    roles = [OrgRole.admin, OrgRole.secretary, OrgRole.staff, OrgRole.guardian, OrgRole.student]
+    
+    for role in roles:
+        membership_data = {
+            "org_id": uuid.uuid4(),
+            "role": role,
+            "organization_name": f"Test Org {role.value}",
+            "joined_at": datetime.now()
+        }
+        membership = OrganizationMembership(**membership_data)
+        assert membership.role == role

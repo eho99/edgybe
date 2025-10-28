@@ -151,18 +151,32 @@ async def require_admin_role(
         raise HTTPException(status_code=403, detail="Admin role required")
     return member
 
-async def require_admin_or_member_role(
+async def require_admin_or_secretary_role(
     org_id: UUID4,
     db: Session = Depends(get_db),
     user: schemas.SupabaseUser = Depends(get_current_user)
 ) -> schemas.AuthenticatedMember:
     """
-    Dependency that requires the user to be an ADMIN or MEMBER of the specified organization.
-    Blocks VIEWER role.
+    Dependency that requires the user to be an ADMIN or SECRETARY of the specified organization.
+    Blocks STAFF, GUARDIAN, and STUDENT roles.
     """
     member = await get_current_active_member(Request(), org_id, db, user)
-    if member.role not in [OrgRole.admin, OrgRole.member]:
-        raise HTTPException(status_code=403, detail="Admin or member role required")
+    if member.role not in [OrgRole.admin, OrgRole.secretary]:
+        raise HTTPException(status_code=403, detail="Admin or secretary role required")
+    return member
+
+async def require_active_role(
+    org_id: UUID4,
+    db: Session = Depends(get_db),
+    user: schemas.SupabaseUser = Depends(get_current_user)
+) -> schemas.AuthenticatedMember:
+    """
+    Dependency that requires the user to be an active member (admin, secretary, or staff)
+    of the specified organization. Blocks guardian and student roles.
+    """
+    member = await get_current_active_member(Request(), org_id, db, user)
+    if member.role not in [OrgRole.admin, OrgRole.secretary, OrgRole.staff]:
+        raise HTTPException(status_code=403, detail="Active role required (admin, secretary, or staff)")
     return member
 
 async def require_any_role(
@@ -198,12 +212,12 @@ def can_manage_users(user_role: OrgRole) -> bool:
     return user_role == OrgRole.admin
 
 def can_create_content(user_role: OrgRole) -> bool:
-    """Check if user can create content (admin or member)."""
-    return user_role in [OrgRole.admin, OrgRole.member]
+    """Check if user can create content (admin, secretary, or staff)."""
+    return user_role in [OrgRole.admin, OrgRole.secretary, OrgRole.staff]
 
 def can_view_content(user_role: OrgRole) -> bool:
     """Check if user can view content (any role)."""
-    return user_role in [OrgRole.admin, OrgRole.member, OrgRole.viewer]
+    return user_role in [OrgRole.admin, OrgRole.secretary, OrgRole.staff, OrgRole.guardian, OrgRole.student]
 
 def get_role_hierarchy_level(role: OrgRole) -> int:
     """
@@ -211,9 +225,11 @@ def get_role_hierarchy_level(role: OrgRole) -> int:
     Useful for comparing roles.
     """
     hierarchy = {
-        OrgRole.viewer: 1,
-        OrgRole.member: 2,
-        OrgRole.admin: 3
+        OrgRole.student: 1,
+        OrgRole.guardian: 2,
+        OrgRole.staff: 3,
+        OrgRole.secretary: 4,
+        OrgRole.admin: 5
     }
     return hierarchy.get(role, 0)
 
@@ -223,4 +239,20 @@ def role_has_permission(user_role: OrgRole, target_role: OrgRole) -> bool:
     Higher hierarchy roles can manage lower hierarchy roles.
     """
     return get_role_hierarchy_level(user_role) >= get_role_hierarchy_level(target_role)
+
+def is_active_role(role: OrgRole) -> bool:
+    """
+    Check if a role is considered active (can receive invites, notifications, etc.).
+    Active roles: admin, secretary, staff
+    Inactive roles: guardian, student
+    """
+    return role in [OrgRole.admin, OrgRole.secretary, OrgRole.staff]
+
+def is_inactive_role(role: OrgRole) -> bool:
+    """
+    Check if a role is considered inactive (cannot receive invites, notifications, etc.).
+    Inactive roles: guardian, student
+    Active roles: admin, secretary, staff
+    """
+    return role in [OrgRole.guardian, OrgRole.student]
 

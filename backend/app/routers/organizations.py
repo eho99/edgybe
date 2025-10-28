@@ -54,28 +54,43 @@ async def get_admin_only_data(
         "organization_id": admin_member.org_id
     }
 
-@router.get("/{org_id}/member-content")
-async def get_member_content(
+@router.get("/{org_id}/secretary-content")
+async def get_secretary_content(
     org_id: UUID4,
-    member: schemas.AuthenticatedMember = Depends(auth.require_admin_or_member_role)
+    member: schemas.AuthenticatedMember = Depends(auth.require_admin_or_secretary_role)
 ):
     """
-    Example endpoint that requires ADMIN or MEMBER role.
-    VIEWER role is blocked from accessing this content.
+    Example endpoint that requires ADMIN or SECRETARY role.
+    STAFF, GUARDIAN, and STUDENT roles are blocked from accessing this content.
     """
     return {
-        "message": "This content is for admins and members only",
+        "message": "This content is for admins and secretaries only",
         "user_role": member.role,
         "organization_id": member.org_id
     }
 
-@router.get("/{org_id}/viewer-content")
-async def get_viewer_content(
+@router.get("/{org_id}/active-member-content")
+async def get_active_member_content(
+    org_id: UUID4,
+    member: schemas.AuthenticatedMember = Depends(auth.require_active_role)
+):
+    """
+    Example endpoint that requires active member role (admin, secretary, or staff).
+    GUARDIAN and STUDENT roles are blocked from accessing this content.
+    """
+    return {
+        "message": "This content is for active members only (admin, secretary, staff)",
+        "user_role": member.role,
+        "organization_id": member.org_id
+    }
+
+@router.get("/{org_id}/all-member-content")
+async def get_all_member_content(
     org_id: UUID4,
     member: schemas.AuthenticatedMember = Depends(auth.require_any_role)
 ):
     """
-    Example endpoint that allows any active member (including viewers).
+    Example endpoint that allows any active member (including guardians and students).
     """
     return {
         "message": "This content is visible to all organization members",

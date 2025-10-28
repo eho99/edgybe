@@ -8,8 +8,10 @@ from ..db import Base
 
 class OrgRole(enum.Enum):
     admin = "admin"
-    member = "member"
-    viewer = "viewer"
+    secretary = "secretary"
+    staff = "staff"
+    guardian = "guardian"
+    student = "student"
 
 class MemberStatus(enum.Enum):
     active = "active"
@@ -22,13 +24,21 @@ class OrganizationMember(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False)
     
-    role = Column(Enum(OrgRole), nullable=False, default=OrgRole.member)
+    role = Column(Enum(OrgRole), nullable=False, default=OrgRole.staff)
     status = Column(Enum(MemberStatus), nullable=False, default=MemberStatus.active)
     
     joined_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organization = relationship("Organization", back_populates="members")
     user_profile = relationship("Profile", back_populates="memberships")
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Automatically set status based on role
+        if self.role in [OrgRole.guardian, OrgRole.student]:
+            self.status = MemberStatus.inactive
+        else:
+            self.status = MemberStatus.active
     
     __table_args__ = (
         UniqueConstraint('organization_id', 'user_id', name='_org_user_uc'),
