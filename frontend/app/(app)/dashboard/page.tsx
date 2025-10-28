@@ -46,7 +46,7 @@ export default function DashboardPage() {
       try {
         // First, get user's organization memberships
         const membershipsResponse = await apiClient('/api/v1/organizations/my-memberships')
-        const membershipsData = await membershipsResponse.json()
+        const membershipsData = membershipsResponse as OrganizationMembership[]
         setMemberships(membershipsData)
         
         if (membershipsData.length === 0) {
@@ -58,7 +58,7 @@ export default function DashboardPage() {
         const orgId = membershipsData[0].org_id
         
         const response = await apiClient(`/api/v1/organizations/${orgId}/protected-data`)
-        const result = await response.json()
+        const result = response as AuthenticatedMember
         setData(result)
       } catch (err: unknown) {
         setError((err as Error).message)
