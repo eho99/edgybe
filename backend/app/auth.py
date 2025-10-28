@@ -5,7 +5,7 @@ from supabase import create_client, Client
 from supabase_auth.errors import AuthApiError
 from . import schemas
 from .db import get_db
-from .models import OrganizationMember, MemberStatus, OrgRole
+from .models.organization_member import OrganizationMember, MemberStatus, OrgRole
 from sqlalchemy.orm import Session
 from pydantic import UUID4
 from typing import List, Optional

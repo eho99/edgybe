@@ -1,10 +1,10 @@
 import uuid
 import enum
-from sqlalchemy import Column, String, DateTime, ForeignKey, Enum, UniqueConstraint, ForeignKeyConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, Enum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from .db import Base
+from ..db import Base
 
 class OrgRole(enum.Enum):
     admin = "admin"
@@ -14,25 +14,6 @@ class OrgRole(enum.Enum):
 class MemberStatus(enum.Enum):
     active = "active"
     inactive = "inactive"
-
-class Organization(Base):
-    __tablename__ = "organizations"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    members = relationship("OrganizationMember", back_populates="organization")
-
-class Profile(Base):
-    __tablename__ = "profiles"
-    # This ID comes directly from supabase.auth.users.id
-    # Note: We don't create a foreign key constraint here because auth.users
-    # is managed by Supabase Auth and not part of our application schema
-    id = Column(UUID(as_uuid=True), primary_key=True)
-    full_name = Column(String)
-    
-    # A user can be a member of many organizations
-    memberships = relationship("OrganizationMember", back_populates="user_profile")
 
 class OrganizationMember(Base):
     __tablename__ = "organization_members"
@@ -52,4 +33,3 @@ class OrganizationMember(Base):
     __table_args__ = (
         UniqueConstraint('organization_id', 'user_id', name='_org_user_uc'),
     )
-
