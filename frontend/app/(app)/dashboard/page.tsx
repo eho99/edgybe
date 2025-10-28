@@ -22,6 +22,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
+import { InviteMemberForm } from "@/components/ui/InviteMemberForm"
 
 interface AuthenticatedMember {
   user: {
@@ -179,6 +180,9 @@ export default function DashboardPage() {
               </pre>
             </CardContent>
           </Card>
+
+          {/* Conditionally render the invite form for admins */}
+          {data.role === 'admin' && <InviteMemberForm orgId={data.org_id} />}
         </CardContent>
       </Card>
     </div>

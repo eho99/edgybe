@@ -139,56 +139,45 @@ async def get_user_default_organization(
 # ============================================================================
 
 async def require_admin_role(
-    org_id: UUID4,
-    db: Session = Depends(get_db),
-    user: schemas.SupabaseUser = Depends(get_current_user)
+    member: schemas.AuthenticatedMember = Depends(get_current_active_member)
 ) -> schemas.AuthenticatedMember:
     """
     Dependency that requires the user to be an ADMIN of the specified organization.
     """
-    member = await get_current_active_member(Request(), org_id, db, user)
     if member.role != OrgRole.admin:
         raise HTTPException(status_code=403, detail="Admin role required")
     return member
 
 async def require_admin_or_secretary_role(
-    org_id: UUID4,
-    db: Session = Depends(get_db),
-    user: schemas.SupabaseUser = Depends(get_current_user)
+    member: schemas.AuthenticatedMember = Depends(get_current_active_member)
 ) -> schemas.AuthenticatedMember:
     """
     Dependency that requires the user to be an ADMIN or SECRETARY of the specified organization.
     Blocks STAFF, GUARDIAN, and STUDENT roles.
     """
-    member = await get_current_active_member(Request(), org_id, db, user)
     if member.role not in [OrgRole.admin, OrgRole.secretary]:
         raise HTTPException(status_code=403, detail="Admin or secretary role required")
     return member
 
 async def require_active_role(
-    org_id: UUID4,
-    db: Session = Depends(get_db),
-    user: schemas.SupabaseUser = Depends(get_current_user)
+    member: schemas.AuthenticatedMember = Depends(get_current_active_member)
 ) -> schemas.AuthenticatedMember:
     """
     Dependency that requires the user to be an active member (admin, secretary, or staff)
     of the specified organization. Blocks guardian and student roles.
     """
-    member = await get_current_active_member(Request(), org_id, db, user)
     if member.role not in [OrgRole.admin, OrgRole.secretary, OrgRole.staff]:
         raise HTTPException(status_code=403, detail="Active role required (admin, secretary, or staff)")
     return member
 
 async def require_any_role(
-    org_id: UUID4,
-    db: Session = Depends(get_db),
-    user: schemas.SupabaseUser = Depends(get_current_user)
+    member: schemas.AuthenticatedMember = Depends(get_current_active_member)
 ) -> schemas.AuthenticatedMember:
     """
     Dependency that requires the user to be any active member of the specified organization.
     This is equivalent to get_current_active_member but with a clearer name.
     """
-    return await get_current_active_member(Request(), org_id, db, user)
+    return member
 
 # ============================================================================
 # HELPER FUNCTIONS FOR ROLE CHECKING

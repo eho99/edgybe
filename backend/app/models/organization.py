@@ -12,3 +12,4 @@ class Organization(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     members = relationship("OrganizationMember", back_populates="organization")
+    student_guardian_links = relationship("StudentGuardian", back_populates="organization")
