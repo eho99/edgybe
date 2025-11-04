@@ -13,3 +13,4 @@ class Organization(Base):
     
     members = relationship("OrganizationMember", back_populates="organization")
     student_guardian_links = relationship("StudentGuardian", back_populates="organization")
+    invitations = relationship("Invitation", back_populates="organization")

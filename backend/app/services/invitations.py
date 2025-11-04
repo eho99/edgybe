@@ -3,6 +3,7 @@ from pydantic import EmailStr, UUID4
 from fastapi import Depends
 from supabase_auth.errors import AuthApiError
 import logging
+from datetime import datetime
 
 from .. import models, schemas
 from ..db import get_db
@@ -20,7 +21,8 @@ class InvitationService:
         org_id: UUID4,
         email: EmailStr,
         role: models.OrgRole,
-        full_name: str | None = None
+        full_name: str | None = None,
+        inviter_id: UUID4 | None = None
     ) -> models.OrganizationMember:
         """
         Main service function.
@@ -74,6 +76,16 @@ class InvitationService:
                 logger.info(f"Invite response type: {type(invite_response)}")
                 logger.info(f"Invite response: {invite_response}")
                 
+                # Create invitation record for tracking
+                invitation = models.Invitation(
+                    organization_id=org_id,
+                    email=email,
+                    role=role,
+                    inviter_id=inviter_id,  # Use the actual inviter's user ID
+                    status=models.InvitationStatus.pending
+                )
+                self.db.add(invitation)
+                
                 # Do NOT create a temporary profile. Create a pending membership tied to invite_email.
                 member = models.OrganizationMember(
                     organization_id=org_id,
@@ -85,8 +97,9 @@ class InvitationService:
                 self.db.add(member)
                 self.db.commit()
                 self.db.refresh(member)
+                self.db.refresh(invitation)
                 
-                logger.info(f"Invitation sent to {email}. Created pending organization membership. Will link on acceptance.")
+                logger.info(f"Invitation sent to {email}. Created invitation record and pending organization membership. Will link on acceptance.")
                 return member
             
         except Exception as e:
@@ -168,6 +181,34 @@ class InvitationService:
         
         logger.info(f"No organization memberships found to link for user {user_id}")
         return None
+
+    def mark_invitation_accepted(self, email: str, user_id: UUID4) -> bool:
+        """
+        Mark invitation as accepted when user completes profile.
+        """
+        try:
+            # Find pending invitations for this email
+            invitations = self.db.query(models.Invitation).filter(
+                models.Invitation.email == email,
+                models.Invitation.status == models.InvitationStatus.pending
+            ).all()
+            
+            if not invitations:
+                logger.info(f"No pending invitations found for email {email}")
+                return False
+            
+            # Mark all pending invitations as accepted
+            for invitation in invitations:
+                invitation.status = models.InvitationStatus.accepted
+                invitation.accepted_at = datetime.utcnow()
+            
+            self.db.commit()
+            logger.info(f"Marked {len(invitations)} invitations as accepted for email {email}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error marking invitation as accepted for {email}: {str(e)}")
+            return False
 
 # --- Add a dependency for this service ---
 def get_invitation_service(

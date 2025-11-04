@@ -13,7 +13,7 @@ router = APIRouter(
 
 @router.post(
     "/invite",
-    response_model=schemas.OrganizationMemberPublic,
+    response_model=schemas.OrganizationMemberPublic
 )
 async def invite_new_member(
     org_id: UUID4,
@@ -32,7 +32,8 @@ async def invite_new_member(
             org_id=org_id,
             email=invite_request.email,
             role=invite_request.role,
-            full_name=invite_request.full_name
+            full_name=invite_request.full_name,
+            inviter_id=admin_member.user.id
         )
         return member
     except Exception as e:

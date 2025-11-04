@@ -23,6 +23,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
 import { InviteMemberForm } from "@/components/ui/InviteMemberForm"
+import { InvitationList } from "@/components/ui/InvitationList"
 
 interface AuthenticatedMember {
   user: {
@@ -45,6 +46,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([])
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [activeTab, setActiveTab] = useState<'overview' | 'invitations'>('overview')
   const router = useRouter()
   const supabase = createClient()
 
@@ -132,57 +134,94 @@ export default function DashboardPage() {
           <CardDescription>Welcome, {data.user.email}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Current Organization</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p><strong>Organization:</strong> {memberships.find(m => m.org_id === data.org_id)?.organization_name}</p>
-              <p><strong>Role:</strong> {data.role}</p>
-            </CardContent>
-          </Card>
+          {/* Tab Navigation */}
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'overview'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Overview
+              </button>
+              {data.role === 'admin' && (
+                <button
+                  onClick={() => setActiveTab('invitations')}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'invitations'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Invitations
+                </button>
+              )}
+            </nav>
+          </div>
 
-          {memberships.length > 1 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Organizations</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Organization</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Joined</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {memberships.map((membership) => (
-                      <TableRow key={membership.org_id}>
-                        <TableCell>{membership.organization_name}</TableCell>
-                        <TableCell>{membership.role}</TableCell>
-                        <TableCell>{new Date(membership.joined_at).toLocaleDateString()}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+          {/* Tab Content */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Current Organization</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p><strong>Organization:</strong> {memberships.find(m => m.org_id === data.org_id)?.organization_name}</p>
+                  <p><strong>Role:</strong> {data.role}</p>
+                </CardContent>
+              </Card>
+
+              {memberships.length > 1 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Your Organizations</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Organization</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Joined</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {memberships.map((membership) => (
+                          <TableRow key={membership.org_id}>
+                            <TableCell>{membership.organization_name}</TableCell>
+                            <TableCell>{membership.role}</TableCell>
+                            <TableCell>{new Date(membership.joined_at).toLocaleDateString()}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Raw Data</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto">
+                    {JSON.stringify(data, null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+
+              {/* Conditionally render the invite form for admins */}
+              {data.role === 'admin' && <InviteMemberForm orgId={data.org_id} />}
+            </div>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Raw Data</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto">
-                {JSON.stringify(data, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
-
-          {/* Conditionally render the invite form for admins */}
-          {data.role === 'admin' && <InviteMemberForm orgId={data.org_id} />}
+          {activeTab === 'invitations' && data.role === 'admin' && (
+            <InvitationList orgId={data.org_id} />
+          )}
         </CardContent>
       </Card>
     </div>

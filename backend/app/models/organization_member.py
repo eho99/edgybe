@@ -27,7 +27,7 @@ class OrganizationMember(Base):
     # Store invite email for pending invitations until linked to a real user
     invite_email = Column(String, nullable=True, index=True)
     
-    role = Column(Enum(OrgRole), nullable=False, default=OrgRole.staff)
+    role = Column(Enum(OrgRole, create_type=False), nullable=False, default=OrgRole.staff)
     status = Column(Enum(MemberStatus), nullable=False, default=MemberStatus.active)
     
     joined_at = Column(DateTime(timezone=True), server_default=func.now())

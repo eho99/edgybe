@@ -37,19 +37,19 @@ export default function AppLayout({
 
       // Wait for profile loading to settle
       if (!isLoading) {
-        // If profile loading resulted in an error, or if the profile is incomplete,
-        // redirect to the completion page.
-        if (
-          (isError || !profile?.has_completed_profile) &&
-          pathname !== '/complete-profile'
-        ) {
+        // If profile loading resulted in an error, redirect to completion page
+        if (isError && pathname !== '/complete-profile') {
+          console.log('[AppLayout] Profile fetch error, redirecting to complete-profile')
           router.push('/complete-profile')
         }
-        // If profile is complete and we are on the completion page, go to dashboard.
-        else if (
-          profile?.has_completed_profile &&
-          pathname === '/complete-profile'
-        ) {
+        // If profile is loaded and incomplete, redirect to completion page
+        else if (profile && !profile.has_completed_profile && pathname !== '/complete-profile') {
+          console.log('[AppLayout] Profile incomplete, redirecting to complete-profile')
+          router.push('/complete-profile')
+        }
+        // If profile is complete and we are on the completion page, go to dashboard
+        else if (profile && profile.has_completed_profile && pathname === '/complete-profile') {
+          console.log('[AppLayout] Profile complete, redirecting to dashboard')
           router.push('/dashboard')
         }
       }
@@ -82,7 +82,7 @@ export default function AppLayout({
   }
 
   // If profile is loaded AND completed, show the main app.
-  if (profile?.has_completed_profile) {
+  if (profile && profile.has_completed_profile) {
     return (
       <main>
         {/* My main app nav/sidebar would go here */}
@@ -91,7 +91,12 @@ export default function AppLayout({
     )
   }
 
-  // Fallback for loading or error states
-  return <div>Loading...</div>
+  // If profile is loaded but incomplete, show completion page
+  if (profile && !profile.has_completed_profile) {
+    return <>{children}</>
+  }
+
+  // Fallback for loading states
+  return <div>Loading user data...</div>
 }
 

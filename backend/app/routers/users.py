@@ -87,6 +87,10 @@ async def update_my_profile(
             logger.info(f"Successfully linked user {user.id} to organization {linked_member.organization_id}")
         else:
             logger.info(f"No organization memberships found to link for user {user.id}")
+        
+        # Mark invitations as accepted
+        invitation_service.mark_invitation_accepted(user.email, user.id)
+        
     except Exception as e:
         logger.error(f"Error linking organization memberships for user {user.id}: {str(e)}")
         # Don't fail the profile update if linking fails
