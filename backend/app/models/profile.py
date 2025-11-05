@@ -21,6 +21,6 @@ class Profile(Base):
     
     # Student-Guardian relationships (as guardian)
     guardian_relationships = relationship("StudentGuardian", foreign_keys="StudentGuardian.guardian_id", back_populates="guardian")
-    
+
     # Invitations sent by this user
     sent_invitations = relationship("Invitation", back_populates="inviter")

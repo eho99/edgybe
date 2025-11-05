@@ -150,15 +150,22 @@ class TestInvitationEndpoints:
         assert data["total"] == 8
     
     @patch('app.routers.invitations.auth.require_admin_role')
+    @patch('app.routers.invitations.get_invitation_service')
     @patch('app.routers.invitations.get_db')
-    def test_resend_invitation_success(self, mock_get_db, mock_require_admin, client, mock_auth_member, sample_invitation):
+    def test_resend_invitation_success(self, mock_get_db, mock_get_service, mock_require_admin, client, mock_auth_member, sample_invitation, sample_inviter):
         """Test successful resend of invitation"""
         # Setup
         mock_db = MagicMock()
         mock_get_db.return_value = mock_db
         mock_require_admin.return_value = mock_auth_member
         
-        mock_db.query.return_value.filter.return_value.first.return_value = sample_invitation
+        # Mock invitation service
+        mock_service = MagicMock()
+        mock_service.resend_invitation = MagicMock(return_value=(True, "Invitation resent successfully"))
+        mock_get_service.return_value = mock_service
+        
+        # Mock database queries for fetching invitation after resend
+        mock_db.query.return_value.filter.return_value.first.side_effect = [sample_invitation, sample_inviter]
         
         # Execute
         response = client.post(f"/api/v1/organizations/{mock_auth_member.org_id}/invitations/{sample_invitation.id}/resend")
@@ -168,18 +175,25 @@ class TestInvitationEndpoints:
         data = response.json()
         assert data["email"] == "test@example.com"
         assert data["status"] == "pending"
-        mock_db.commit.assert_called_once()
+        mock_service.resend_invitation.assert_called_once_with(
+            invitation_id=sample_invitation.id,
+            org_id=mock_auth_member.org_id
+        )
     
     @patch('app.routers.invitations.auth.require_admin_role')
+    @patch('app.routers.invitations.get_invitation_service')
     @patch('app.routers.invitations.get_db')
-    def test_resend_invitation_not_found(self, mock_get_db, mock_require_admin, client, mock_auth_member):
+    def test_resend_invitation_not_found(self, mock_get_db, mock_get_service, mock_require_admin, client, mock_auth_member):
         """Test resend invitation when invitation not found"""
         # Setup
         mock_db = MagicMock()
         mock_get_db.return_value = mock_db
         mock_require_admin.return_value = mock_auth_member
         
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        # Mock invitation service returning not found
+        mock_service = MagicMock()
+        mock_service.resend_invitation = MagicMock(return_value=(False, "Invitation not found"))
+        mock_get_service.return_value = mock_service
         
         # Execute
         response = client.post(f"/api/v1/organizations/{mock_auth_member.org_id}/invitations/{uuid4()}/resend")
@@ -189,23 +203,26 @@ class TestInvitationEndpoints:
         assert "Invitation not found" in response.json()["detail"]
     
     @patch('app.routers.invitations.auth.require_admin_role')
+    @patch('app.routers.invitations.get_invitation_service')
     @patch('app.routers.invitations.get_db')
-    def test_resend_invitation_wrong_status(self, mock_get_db, mock_require_admin, client, mock_auth_member, sample_invitation):
+    def test_resend_invitation_wrong_status(self, mock_get_db, mock_get_service, mock_require_admin, client, mock_auth_member, sample_invitation):
         """Test resend invitation when invitation is not pending"""
         # Setup
         mock_db = MagicMock()
         mock_get_db.return_value = mock_db
         mock_require_admin.return_value = mock_auth_member
         
-        sample_invitation.status = InvitationStatus.accepted
-        mock_db.query.return_value.filter.return_value.first.return_value = sample_invitation
+        # Mock invitation service returning wrong status error
+        mock_service = MagicMock()
+        mock_service.resend_invitation = MagicMock(return_value=(False, "Cannot resend invitation with status: accepted"))
+        mock_get_service.return_value = mock_service
         
         # Execute
         response = client.post(f"/api/v1/organizations/{mock_auth_member.org_id}/invitations/{sample_invitation.id}/resend")
         
         # Verify
         assert response.status_code == 400
-        assert "Can only resend pending invitations" in response.json()["detail"]
+        assert "status" in response.json()["detail"].lower()
     
     @patch('app.routers.invitations.auth.require_admin_role')
     @patch('app.routers.invitations.get_db')

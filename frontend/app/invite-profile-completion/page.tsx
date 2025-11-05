@@ -182,7 +182,7 @@ export default function InviteProfileCompletionPage() {
       const { error: passwordError } = await supabase.auth.updateUser({
         password: password
       })
-
+      
       if (passwordError) {
         throw new Error(`Failed to update password: ${passwordError.message}`)
       }

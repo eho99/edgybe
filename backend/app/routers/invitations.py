@@ -169,14 +169,41 @@ async def resend_invitation(
     org_id: UUID4,
     invitation_id: UUID4,
     db: Session = Depends(get_db),
-    admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role)
+    admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role),
+    invitation_service: InvitationService = Depends(get_invitation_service)
 ):
     """
-    Resend an invitation.
+    Resend an invitation email via Supabase.
     Only Admins can perform this action.
     """
     try:
-        # Find the invitation
+        # Use the service method to resend the invitation
+        success, message = await invitation_service.resend_invitation(
+            invitation_id=invitation_id,
+            org_id=org_id
+        )
+        
+        if not success:
+            # Check if it's a "not found" error
+            if "not found" in message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=message
+                )
+            # Check if it's a "wrong status" error
+            elif "status" in message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=message
+                )
+            # Other errors
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=message
+                )
+        
+        # Fetch the updated invitation to return
         invitation = db.query(models.Invitation).filter(
             and_(
                 models.Invitation.id == invitation_id,
@@ -187,20 +214,13 @@ async def resend_invitation(
         if not invitation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Invitation not found"
+                detail="Invitation not found after resend"
             )
         
-        if invitation.status != models.InvitationStatus.pending:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Can only resend pending invitations"
-            )
-        
-        # TODO: Resend the actual email via Supabase
-        # For now, just update the sent_at timestamp
-        invitation.sent_at = models.func.now()
-        db.commit()
-        db.refresh(invitation)
+        # Get inviter name
+        inviter = db.query(models.Profile).filter(
+            models.Profile.id == invitation.inviter_id
+        ).first()
         
         return schemas.InvitationResponse(
             id=invitation.id,
@@ -213,7 +233,8 @@ async def resend_invitation(
             accepted_at=invitation.accepted_at,
             expires_at=invitation.expires_at,
             created_at=invitation.created_at,
-            updated_at=invitation.updated_at
+            updated_at=invitation.updated_at,
+            inviter_name=inviter.full_name if inviter else None
         )
         
     except HTTPException:

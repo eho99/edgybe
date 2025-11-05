@@ -3,7 +3,7 @@ from pydantic import EmailStr, UUID4
 from fastapi import Depends
 from supabase_auth.errors import AuthApiError
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from .. import models, schemas
 from ..db import get_db
@@ -200,7 +200,7 @@ class InvitationService:
             # Mark all pending invitations as accepted
             for invitation in invitations:
                 invitation.status = models.InvitationStatus.accepted
-                invitation.accepted_at = datetime.utcnow()
+                invitation.accepted_at = datetime.now(timezone.utc)
             
             self.db.commit()
             logger.info(f"Marked {len(invitations)} invitations as accepted for email {email}")
@@ -209,6 +209,97 @@ class InvitationService:
         except Exception as e:
             logger.error(f"Error marking invitation as accepted for {email}: {str(e)}")
             return False
+
+    async def resend_invitation(
+        self,
+        invitation_id: UUID4,
+        org_id: UUID4
+    ) -> tuple[bool, str]:
+        """
+        Resend an invitation email via Supabase.
+        
+        Args:
+            invitation_id: The ID of the invitation to resend
+            org_id: The organization ID (for verification)
+            
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            # Find the invitation
+            invitation = self.db.query(models.Invitation).filter(
+                models.Invitation.id == invitation_id,
+                models.Invitation.organization_id == org_id
+            ).first()
+            
+            if not invitation:
+                logger.warning(f"Invitation {invitation_id} not found for org {org_id}")
+                return (False, "Invitation not found")
+            
+            # Verify invitation is pending
+            if invitation.status != models.InvitationStatus.pending:
+                logger.warning(f"Attempted to resend non-pending invitation {invitation_id} with status {invitation.status}")
+                return (False, f"Cannot resend invitation with status: {invitation.status}")
+            
+            # Check if invitation is expired
+            now = datetime.now(timezone.utc)
+            is_expired = invitation.expires_at < now
+            
+            # Resend the invitation via Supabase
+            try:
+                logger.info(f"Resending invitation to {invitation.email} via Supabase")
+                
+                # Use the same redirect_to URL as original invitation
+                redirect_to = "http://localhost:3000/invite-profile-completion"
+                # TODO: Make this configurable via environment variable
+                # redirect_to = os.getenv("NEXT_PUBLIC_FRONTEND_URL", "http://localhost:3000") + "/invite-profile-completion"
+                
+                invite_response = supabase.auth.admin.invite_user_by_email(
+                    invitation.email,
+                    options={
+                        "redirect_to": redirect_to
+                    }
+                )
+                
+                logger.info(f"Supabase resend response: {invite_response}")
+                
+                # Update sent_at timestamp
+                invitation.sent_at = now
+                
+                # If invitation was expired or close to expiring, extend expiration by 7 days
+                if is_expired or (invitation.expires_at - now).days < 1:
+                    invitation.expires_at = now + timedelta(days=7)
+                    logger.info(f"Extended expiration date for invitation {invitation_id}")
+                
+                self.db.commit()
+                self.db.refresh(invitation)
+                
+                logger.info(f"Successfully resent invitation {invitation_id} to {invitation.email}")
+                return (True, "Invitation resent successfully")
+                
+            except AuthApiError as e:
+                logger.error(f"Supabase API error when resending invitation {invitation_id}: {str(e)}")
+                # Handle specific Supabase errors
+                error_message = str(e)
+                if "already exists" in error_message.lower() or "already registered" in error_message.lower():
+                    # User already exists - this shouldn't happen for resend, but handle gracefully
+                    logger.warning(f"User {invitation.email} already exists in Auth. Updating timestamp anyway.")
+                    invitation.sent_at = now
+                    if is_expired:
+                        invitation.expires_at = now + timedelta(days=7)
+                    self.db.commit()
+                    return (True, "Invitation timestamp updated (user already exists)")
+                else:
+                    # Other Supabase errors (rate limits, network issues, etc.)
+                    return (False, f"Failed to resend invitation: {error_message}")
+                    
+            except Exception as e:
+                logger.error(f"Unexpected error when resending invitation {invitation_id}: {str(e)}")
+                return (False, f"Failed to resend invitation: {str(e)}")
+                
+        except Exception as e:
+            logger.error(f"Error in resend_invitation for {invitation_id}: {str(e)}")
+            return (False, f"Error resending invitation: {str(e)}")
 
 # --- Add a dependency for this service ---
 def get_invitation_service(

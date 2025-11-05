@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from app.services.invitations import InvitationService
@@ -130,6 +130,173 @@ class TestInvitationService:
         # Verify
         assert result is None
         mock_db_session.commit.assert_not_called()
+
+
+@pytest.mark.asyncio
+class TestResendInvitation:
+    
+    @patch('app.services.invitations.supabase')
+    async def test_resend_invitation_success(self, mock_supabase, invitation_service, mock_db_session):
+        """Test successful resend of pending invitation"""
+        # Setup
+        invitation_id = uuid4()
+        org_id = uuid4()
+        email = 'test@example.com'
+        
+        # Mock invitation
+        mock_invitation = MagicMock()
+        mock_invitation.id = invitation_id
+        mock_invitation.organization_id = org_id
+        mock_invitation.email = email
+        mock_invitation.status = InvitationStatus.pending
+        mock_invitation.expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        mock_invitation.sent_at = datetime.now(timezone.utc) - timedelta(days=1)
+        
+        mock_db_session.query.return_value.filter.return_value.first.return_value = mock_invitation
+        mock_supabase.auth.admin.invite_user_by_email.return_value = MagicMock()
+        
+        # Execute
+        success, message = await invitation_service.resend_invitation(invitation_id, org_id)
+        
+        # Verify
+        assert success is True
+        assert "successfully" in message.lower()
+        mock_supabase.auth.admin.invite_user_by_email.assert_called_once_with(
+            email,
+            options={"redirect_to": "http://localhost:3000/invite-profile-completion"}
+        )
+        assert mock_invitation.sent_at is not None
+        mock_db_session.commit.assert_called_once()
+    
+    @patch('app.services.invitations.supabase')
+    async def test_resend_invitation_extends_expiration(self, mock_supabase, invitation_service, mock_db_session):
+        """Test that resending expired invitation extends expiration"""
+        # Setup
+        invitation_id = uuid4()
+        org_id = uuid4()
+        email = 'test@example.com'
+        
+        # Mock expired invitation
+        mock_invitation = MagicMock()
+        mock_invitation.id = invitation_id
+        mock_invitation.organization_id = org_id
+        mock_invitation.email = email
+        mock_invitation.status = InvitationStatus.pending
+        mock_invitation.expires_at = datetime.now(timezone.utc) - timedelta(days=1)  # Expired
+        mock_invitation.sent_at = datetime.now(timezone.utc) - timedelta(days=8)
+        
+        mock_db_session.query.return_value.filter.return_value.first.return_value = mock_invitation
+        mock_supabase.auth.admin.invite_user_by_email.return_value = MagicMock()
+        
+        # Execute
+        success, message = await invitation_service.resend_invitation(invitation_id, org_id)
+        
+        # Verify
+        assert success is True
+        # Verify expiration was extended (should be ~7 days from now)
+        assert mock_invitation.expires_at > datetime.now(timezone.utc)
+        mock_db_session.commit.assert_called_once()
+    
+    async def test_resend_invitation_not_found(self, invitation_service, mock_db_session):
+        """Test resend when invitation not found"""
+        # Setup
+        invitation_id = uuid4()
+        org_id = uuid4()
+        
+        mock_db_session.query.return_value.filter.return_value.first.return_value = None
+        
+        # Execute
+        success, message = await invitation_service.resend_invitation(invitation_id, org_id)
+        
+        # Verify
+        assert success is False
+        assert "not found" in message.lower()
+        mock_db_session.commit.assert_not_called()
+    
+    async def test_resend_invitation_wrong_status(self, invitation_service, mock_db_session):
+        """Test resend fails for non-pending invitations"""
+        # Setup
+        invitation_id = uuid4()
+        org_id = uuid4()
+        
+        # Mock accepted invitation
+        mock_invitation = MagicMock()
+        mock_invitation.id = invitation_id
+        mock_invitation.organization_id = org_id
+        mock_invitation.status = InvitationStatus.accepted
+        
+        mock_db_session.query.return_value.filter.return_value.first.return_value = mock_invitation
+        
+        # Execute
+        success, message = await invitation_service.resend_invitation(invitation_id, org_id)
+        
+        # Verify
+        assert success is False
+        assert "status" in message.lower()
+        mock_db_session.commit.assert_not_called()
+    
+    @patch('app.services.invitations.supabase')
+    @patch('app.services.invitations.AuthApiError')
+    async def test_resend_invitation_supabase_api_error(self, mock_auth_error, mock_supabase, invitation_service, mock_db_session):
+        """Test handling Supabase API errors"""
+        # Setup
+        invitation_id = uuid4()
+        org_id = uuid4()
+        email = 'test@example.com'
+        
+        # Mock invitation
+        mock_invitation = MagicMock()
+        mock_invitation.id = invitation_id
+        mock_invitation.organization_id = org_id
+        mock_invitation.email = email
+        mock_invitation.status = InvitationStatus.pending
+        mock_invitation.expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        
+        mock_db_session.query.return_value.filter.return_value.first.return_value = mock_invitation
+        
+        # Mock Supabase API error
+        mock_supabase.auth.admin.invite_user_by_email.side_effect = mock_auth_error("Rate limit exceeded")
+        
+        # Execute
+        success, message = await invitation_service.resend_invitation(invitation_id, org_id)
+        
+        # Verify
+        assert success is False
+        assert "rate limit" in message.lower() or "failed" in message.lower()
+        mock_db_session.commit.assert_not_called()
+    
+    @patch('app.services.invitations.supabase')
+    @patch('app.services.invitations.AuthApiError')
+    async def test_resend_invitation_user_already_exists(self, mock_auth_error, mock_supabase, invitation_service, mock_db_session):
+        """Test handling user already exists in Auth"""
+        # Setup
+        invitation_id = uuid4()
+        org_id = uuid4()
+        email = 'test@example.com'
+        
+        # Mock invitation
+        mock_invitation = MagicMock()
+        mock_invitation.id = invitation_id
+        mock_invitation.organization_id = org_id
+        mock_invitation.email = email
+        mock_invitation.status = InvitationStatus.pending
+        mock_invitation.expires_at = datetime.now(timezone.utc) - timedelta(days=1)  # Expired
+        
+        mock_db_session.query.return_value.filter.return_value.first.return_value = mock_invitation
+        
+        # Mock Supabase error indicating user already exists
+        error = mock_auth_error("User already exists")
+        error.message = "User already registered"
+        mock_supabase.auth.admin.invite_user_by_email.side_effect = error
+        
+        # Execute
+        success, message = await invitation_service.resend_invitation(invitation_id, org_id)
+        
+        # Verify
+        assert success is True  # Should still succeed, just update timestamp
+        assert "already exists" in message.lower() or "timestamp updated" in message.lower()
+        assert mock_invitation.sent_at is not None
+        mock_db_session.commit.assert_called_once()
 
 
 @pytest.mark.asyncio

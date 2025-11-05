@@ -165,57 +165,57 @@ export default function DashboardPage() {
           {/* Tab Content */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Current Organization</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p><strong>Organization:</strong> {memberships.find(m => m.org_id === data.org_id)?.organization_name}</p>
-                  <p><strong>Role:</strong> {data.role}</p>
-                </CardContent>
-              </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Current Organization</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p><strong>Organization:</strong> {memberships.find(m => m.org_id === data.org_id)?.organization_name}</p>
+              <p><strong>Role:</strong> {data.role}</p>
+            </CardContent>
+          </Card>
 
-              {memberships.length > 1 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Your Organizations</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Organization</TableHead>
-                          <TableHead>Role</TableHead>
-                          <TableHead>Joined</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {memberships.map((membership) => (
-                          <TableRow key={membership.org_id}>
-                            <TableCell>{membership.organization_name}</TableCell>
-                            <TableCell>{membership.role}</TableCell>
-                            <TableCell>{new Date(membership.joined_at).toLocaleDateString()}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              )}
+          {memberships.length > 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Organizations</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Organization</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Joined</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {memberships.map((membership) => (
+                      <TableRow key={membership.org_id}>
+                        <TableCell>{membership.organization_name}</TableCell>
+                        <TableCell>{membership.role}</TableCell>
+                        <TableCell>{new Date(membership.joined_at).toLocaleDateString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Raw Data</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto">
-                    {JSON.stringify(data, null, 2)}
-                  </pre>
-                </CardContent>
-              </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Raw Data</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="bg-gray-100 p-4 rounded text-sm overflow-auto">
+                {JSON.stringify(data, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
 
-              {/* Conditionally render the invite form for admins */}
-              {data.role === 'admin' && <InviteMemberForm orgId={data.org_id} />}
+          {/* Conditionally render the invite form for admins */}
+          {data.role === 'admin' && <InviteMemberForm orgId={data.org_id} />}
             </div>
           )}
 
