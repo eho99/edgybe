@@ -11,6 +11,12 @@ router = APIRouter(
     tags=["Current User"],
 )
 
+# Public router for unauthenticated endpoints
+public_router = APIRouter(
+    prefix="/api/v1/users",
+    tags=["Users"],
+)
+
 logger = logging.getLogger(__name__)
 
 @router.get(
@@ -165,3 +171,36 @@ async def request_password_reset(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send password reset email: {str(e)}"
         )
+
+@public_router.post(
+    "/request-password-reset",
+    response_model=dict
+)
+async def public_request_password_reset(
+    request: PasswordResetRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Public endpoint to request a password reset email.
+    This is used from the login page when users forget their password.
+    Does not require authentication.
+    """
+    try:
+        from ..auth import supabase
+        
+        # Send password reset email
+        supabase.auth.reset_password_for_email(
+            request.email,
+            {
+                "redirect_to": "http://localhost:3000/reset-password"
+            }
+        )
+        
+        logger.info(f"Public password reset email requested for {request.email}")
+        # Don't reveal if email exists or not for security
+        return {"message": "If an account with that email exists, a password reset link has been sent."}
+        
+    except Exception as e:
+        logger.error(f"Error sending password reset email for {request.email}: {str(e)}")
+        # Don't reveal if email exists or not for security
+        return {"message": "If an account with that email exists, a password reset link has been sent."}

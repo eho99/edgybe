@@ -67,3 +67,64 @@ def test_update_my_profile(client: TestClient, db_session):
     assert db_profile is not None
     assert db_profile.full_name == "Updated Full Name"
     assert db_profile.has_completed_profile is True
+
+def test_public_request_password_reset_success(client: TestClient):
+    """Test that public password reset endpoint works without authentication."""
+    from unittest.mock import patch, MagicMock
+    
+    with patch('app.auth.supabase') as mock_supabase:
+        mock_auth = MagicMock()
+        mock_supabase.auth = mock_auth
+        mock_auth.reset_password_for_email = MagicMock(return_value=None)
+        
+        request_data = {"email": "test@example.com"}
+        response = client.post("/api/v1/users/request-password-reset", json=request_data)
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert "password reset link has been sent" in data["message"].lower()
+        
+        # Verify Supabase was called correctly
+        mock_auth.reset_password_for_email.assert_called_once_with(
+            "test@example.com",
+            {
+                "redirect_to": "http://localhost:3000/reset-password"
+            }
+        )
+
+def test_public_request_password_reset_invalid_email(client: TestClient):
+    """Test that public password reset endpoint validates email format."""
+    request_data = {"email": "invalid-email"}
+    response = client.post("/api/v1/users/request-password-reset", json=request_data)
+    
+    assert response.status_code == 422  # Validation error
+    data = response.json()
+    assert "detail" in data
+
+def test_public_request_password_reset_missing_email(client: TestClient):
+    """Test that public password reset endpoint requires email."""
+    request_data = {}
+    response = client.post("/api/v1/users/request-password-reset", json=request_data)
+    
+    assert response.status_code == 422  # Validation error
+    data = response.json()
+    assert "detail" in data
+
+def test_public_request_password_reset_handles_supabase_error(client: TestClient):
+    """Test that public password reset endpoint handles Supabase errors gracefully."""
+    from unittest.mock import patch, MagicMock
+    
+    with patch('app.auth.supabase') as mock_supabase:
+        mock_auth = MagicMock()
+        mock_supabase.auth = mock_auth
+        mock_auth.reset_password_for_email = MagicMock(side_effect=Exception("Supabase error"))
+        
+        request_data = {"email": "test@example.com"}
+        response = client.post("/api/v1/users/request-password-reset", json=request_data)
+        
+        # Should still return 200 with generic message (security: don't reveal if email exists)
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert "password reset link has been sent" in data["message"].lower()

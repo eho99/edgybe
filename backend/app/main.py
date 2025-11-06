@@ -44,6 +44,7 @@ app.add_middleware(
 
 app.include_router(organizations.router)
 app.include_router(users.router)
+app.include_router(users.public_router)
 app.include_router(members.router)
 app.include_router(student_guardian.router)
 app.include_router(invitations.router)
