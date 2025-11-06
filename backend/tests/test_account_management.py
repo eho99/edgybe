@@ -240,8 +240,8 @@ class TestAccountManagementEndpoints:
     
     @patch('app.routers.members.auth.require_admin_role')
     @patch('app.routers.members.get_db')
-    def test_delete_account_success(self, mock_get_db, mock_require_admin, client, mock_auth_member, sample_member):
-        """Test successful deletion of account"""
+    def test_delete_account_success_soft_delete(self, mock_get_db, mock_require_admin, client, mock_auth_member, sample_member):
+        """Test successful soft deletion (deactivation) of account"""
         # Setup
         mock_db = MagicMock()
         mock_get_db.return_value = mock_db
@@ -249,6 +249,7 @@ class TestAccountManagementEndpoints:
         
         # Make sure the member's user_id is different from admin's user_id
         sample_member.user_id = uuid4()  # Different from admin user_id
+        sample_member.status = MemberStatus.active  # Start as active
         
         mock_query = MagicMock()
         mock_query.filter.return_value.first.return_value = sample_member
@@ -259,9 +260,12 @@ class TestAccountManagementEndpoints:
         
         # Verify
         assert response.status_code == 200
-        assert "Account deleted successfully" in response.json()["message"]
-        mock_db.delete.assert_called_once_with(sample_member)
+        assert "Account deactivated successfully" in response.json()["message"]
+        # Verify soft delete: status set to inactive, not hard deleted
+        assert sample_member.status == MemberStatus.inactive
+        mock_db.delete.assert_not_called()  # Should NOT call delete
         mock_db.commit.assert_called_once()
+        mock_db.refresh.assert_called_once_with(sample_member)
     
     @patch('app.routers.members.auth.require_admin_role')
     @patch('app.routers.members.get_db')
@@ -305,7 +309,9 @@ class TestAccountManagementEndpoints:
         # Verify
         assert response.status_code == 400
         assert "Cannot delete your own account" in response.json()["detail"]
-        mock_db.delete.assert_not_called()
+        # Verify status was not changed
+        assert sample_member.status == MemberStatus.active
+        mock_db.commit.assert_not_called()
     
     @patch('app.routers.members.auth.require_admin_role')
     @patch('app.routers.members.get_db')

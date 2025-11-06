@@ -343,6 +343,189 @@ class TestInvitationServiceIntegration:
         assert membership_call_args.role == sample_invitation_data['role']
 
 
+@pytest.mark.asyncio
+class TestReactivationFlow:
+    """Tests for reactivating inactive memberships when re-inviting users"""
+    
+    @patch('app.services.invitations.supabase')
+    async def test_reactivate_inactive_member(self, mock_supabase, invitation_service, mock_db_session):
+        """Test that re-inviting a user with inactive membership reactivates them"""
+        # Setup
+        org_id = uuid4()
+        user_id = uuid4()
+        email = 'reactivate@example.com'
+        role = OrgRole.staff
+        inviter_id = uuid4()
+        
+        # Mock existing user in Supabase Auth
+        mock_supabase_user = MagicMock()
+        mock_supabase_user.id = user_id
+        mock_supabase_user.email = email
+        
+        mock_auth_response = MagicMock()
+        mock_auth_response.data = [mock_supabase_user]
+        mock_supabase.auth.admin.list_users.return_value = mock_auth_response
+        
+        # Mock existing profile
+        mock_profile = MagicMock()
+        mock_profile.id = user_id
+        mock_profile.full_name = "Test User"
+        mock_db_session.query.return_value.filter.return_value.first.return_value = mock_profile
+        
+        # Mock inactive membership
+        mock_inactive_member = MagicMock()
+        mock_inactive_member.user_id = user_id
+        mock_inactive_member.organization_id = org_id
+        mock_inactive_member.status = MemberStatus.inactive
+        mock_inactive_member.role = OrgRole.staff
+        
+        # Setup query chain for membership check
+        membership_query = MagicMock()
+        membership_query.filter.return_value.first.return_value = mock_inactive_member
+        
+        # First query is for profile, second is for membership
+        mock_db_session.query.return_value.filter.return_value.first.side_effect = [
+            mock_profile,  # First call: profile lookup
+            mock_inactive_member  # Second call: membership lookup
+        ]
+        
+        # Execute
+        result = await invitation_service.invite_or_add_user_to_org(
+            org_id=org_id,
+            email=email,
+            role=role,
+            inviter_id=inviter_id
+        )
+        
+        # Verify
+        assert result == mock_inactive_member
+        # Verify reactivation: status changed to active
+        assert mock_inactive_member.status == MemberStatus.active
+        # Verify role was updated
+        assert mock_inactive_member.role == role
+        mock_db_session.commit.assert_called_once()
+        mock_db_session.refresh.assert_called_once_with(mock_inactive_member)
+        # Verify no new membership was created
+        mock_db_session.add.assert_not_called()
+    
+    @patch('app.services.invitations.supabase')
+    async def test_reactivate_inactive_member_updates_role(self, mock_supabase, invitation_service, mock_db_session):
+        """Test that reactivation updates the role correctly"""
+        # Setup
+        org_id = uuid4()
+        user_id = uuid4()
+        email = 'reactivate@example.com'
+        new_role = OrgRole.secretary  # Different role
+        inviter_id = uuid4()
+        
+        # Mock existing user in Supabase Auth
+        mock_supabase_user = MagicMock()
+        mock_supabase_user.id = user_id
+        mock_supabase_user.email = email
+        
+        mock_auth_response = MagicMock()
+        mock_auth_response.data = [mock_supabase_user]
+        mock_supabase.auth.admin.list_users.return_value = mock_auth_response
+        
+        # Mock existing profile
+        mock_profile = MagicMock()
+        mock_profile.id = user_id
+        mock_db_session.query.return_value.filter.return_value.first.side_effect = [
+            mock_profile,  # Profile lookup
+            None  # No membership found (will be handled by query)
+        ]
+        
+        # Mock inactive membership with different role
+        mock_inactive_member = MagicMock()
+        mock_inactive_member.user_id = user_id
+        mock_inactive_member.organization_id = org_id
+        mock_inactive_member.status = MemberStatus.inactive
+        mock_inactive_member.role = OrgRole.staff  # Old role
+        
+        # Setup membership query
+        membership_query = MagicMock()
+        membership_query.filter.return_value.first.return_value = mock_inactive_member
+        
+        # Override the second query to return membership
+        def query_side_effect(model):
+            if model == OrganizationMember:
+                return membership_query
+            return MagicMock()
+        
+        mock_db_session.query.side_effect = lambda model: query_side_effect(model)
+        membership_query.filter.return_value.first.return_value = mock_inactive_member
+        
+        # Actually, let's simplify: set up the query chain properly
+        mock_db_session.query.return_value.filter.return_value.first.side_effect = [
+            mock_profile,  # First: profile
+            mock_inactive_member  # Second: membership
+        ]
+        
+        # Execute
+        result = await invitation_service.invite_or_add_user_to_org(
+            org_id=org_id,
+            email=email,
+            role=new_role,
+            inviter_id=inviter_id
+        )
+        
+        # Verify
+        assert result == mock_inactive_member
+        assert mock_inactive_member.status == MemberStatus.active
+        assert mock_inactive_member.role == new_role  # Role updated
+    
+    @patch('app.services.invitations.supabase')
+    async def test_active_member_not_reactivated(self, mock_supabase, invitation_service, mock_db_session):
+        """Test that active members are not reactivated, just role updated"""
+        # Setup
+        org_id = uuid4()
+        user_id = uuid4()
+        email = 'active@example.com'
+        new_role = OrgRole.secretary
+        inviter_id = uuid4()
+        
+        # Mock existing user in Supabase Auth
+        mock_supabase_user = MagicMock()
+        mock_supabase_user.id = user_id
+        mock_supabase_user.email = email
+        
+        mock_auth_response = MagicMock()
+        mock_auth_response.data = [mock_supabase_user]
+        mock_supabase.auth.admin.list_users.return_value = mock_auth_response
+        
+        # Mock existing profile
+        mock_profile = MagicMock()
+        mock_profile.id = user_id
+        
+        # Mock active membership
+        mock_active_member = MagicMock()
+        mock_active_member.user_id = user_id
+        mock_active_member.organization_id = org_id
+        mock_active_member.status = MemberStatus.active
+        mock_active_member.role = OrgRole.staff
+        
+        mock_db_session.query.return_value.filter.return_value.first.side_effect = [
+            mock_profile,
+            mock_active_member
+        ]
+        
+        # Execute
+        result = await invitation_service.invite_or_add_user_to_org(
+            org_id=org_id,
+            email=email,
+            role=new_role,
+            inviter_id=inviter_id
+        )
+        
+        # Verify
+        assert result == mock_active_member
+        # Status should remain active (not changed)
+        assert mock_active_member.status == MemberStatus.active
+        # Role should be updated
+        assert mock_active_member.role == new_role
+        # Verify status was not set again (it was already active)
+        # We can't easily verify this, but the logic ensures it doesn't change
+
 class TestInvitationModel:
     
     def test_invitation_creation(self):

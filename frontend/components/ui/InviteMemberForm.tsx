@@ -14,7 +14,7 @@ interface InviteMemberFormProps {
 
 export function InviteMemberForm({ orgId }: InviteMemberFormProps) {
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState('staff') // Default role
+  const [role, setRole] = useState('staff')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -30,11 +30,11 @@ export function InviteMemberForm({ orgId }: InviteMemberFormProps) {
         `/api/v1/organizations/${orgId}/members/invite`,
         {
           method: 'POST',
-          body: { email, role },
+          body: { email, role } as any,
         }
       )
       setSuccess(`Successfully invited ${email} as a ${role}.`)
-      setEmail('') // Clear form on success
+      setEmail('')
     } catch (err: any) {
       setError(err.message || 'An unknown error occurred.')
     } finally {

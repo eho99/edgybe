@@ -38,17 +38,17 @@ export default function AppLayout({
       // Wait for profile loading to settle
       if (!isLoading) {
         // If profile loading resulted in an error, redirect to completion page
-        if (isError && pathname !== '/complete-profile') {
-          console.log('[AppLayout] Profile fetch error, redirecting to complete-profile')
-          router.push('/complete-profile')
+        if (isError && pathname !== '/invite-profile-completion') {
+          console.log('[AppLayout] Profile fetch error, redirecting to invite-profile-completion')
+          router.push('/invite-profile-completion')
         }
         // If profile is loaded and incomplete, redirect to completion page
-        else if (profile && !profile.has_completed_profile && pathname !== '/complete-profile') {
-          console.log('[AppLayout] Profile incomplete, redirecting to complete-profile')
-          router.push('/complete-profile')
+        else if (profile && !profile.has_completed_profile && pathname !== '/invite-profile-completion') {
+          console.log('[AppLayout] Profile incomplete, redirecting to invite-profile-completion')
+          router.push('/invite-profile-completion')
         }
         // If profile is complete and we are on the completion page, go to dashboard
-        else if (profile && profile.has_completed_profile && pathname === '/complete-profile') {
+        else if (profile && profile.has_completed_profile && pathname === '/invite-profile-completion') {
           console.log('[AppLayout] Profile complete, redirecting to dashboard')
           router.push('/dashboard')
         }
@@ -75,9 +75,9 @@ export default function AppLayout({
     return <div>Loading user data...</div>
   }
 
-  // If we are on the complete-profile page, just render it.
+  // If we are on the invite-profile-completion page, just render it.
   // The useEffect handles redirecting away if the profile is already complete.
-  if (pathname === '/complete-profile') {
+  if (pathname === '/invite-profile-completion') {
     return <>{children}</>
   }
 

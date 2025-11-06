@@ -23,7 +23,6 @@ router = APIRouter(
 async def invite_new_member(
     org_id: UUID4,
     invite_request: schemas.UserInviteRequest,
-    # This is protected by the *existing* dependency from auth.py
     admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role),
     invitation_service: InvitationService = Depends(get_invitation_service)
 ):
@@ -112,8 +111,21 @@ async def list_accounts(
                 from ..auth import supabase
                 # Get all users from Supabase Auth
                 users_response = supabase.auth.admin.list_users()
-                if users_response and hasattr(users_response, 'data') and users_response.data:
-                    for user in users_response.data:
+                # Handle different response formats: list directly or response object with .users/.data
+                users_list = None
+                if users_response:
+                    if isinstance(users_response, list):
+                        # Direct list of User objects
+                        users_list = users_response
+                    elif hasattr(users_response, 'users') and users_response.users:
+                        # Response object with .users attribute
+                        users_list = users_response.users
+                    elif hasattr(users_response, 'data') and users_response.data:
+                        # Response object with .data attribute
+                        users_list = users_response.data
+                
+                if users_list:
+                    for user in users_list:
                         if user.id in user_ids:
                             user_emails[user.id] = user.email
             except Exception as e:
@@ -173,8 +185,8 @@ async def delete_account(
     admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role)
 ):
     """
-    Delete an organization member account.
-    Hard delete: Removes the member record from the database.
+    Delete (deactivate) an organization member account.
+    Soft delete: Sets the member status to inactive, allowing reactivation later.
     Only Admins can perform this action.
     Cannot delete yourself.
     """
@@ -200,11 +212,12 @@ async def delete_account(
                 detail="Cannot delete your own account"
             )
         
-        # Hard delete: Remove the member record
-        db.delete(member)
+        # Soft delete: Set status to inactive
+        member.status = models.MemberStatus.inactive
         db.commit()
+        db.refresh(member)
         
-        return {"message": "Account deleted successfully"}
+        return {"message": "Account deactivated successfully"}
         
     except HTTPException:
         raise
@@ -213,4 +226,88 @@ async def delete_account(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete account: {str(e)}"
+        )
+
+@router.post(
+    "/{member_id}/reset-password",
+    response_model=dict
+)
+async def reset_member_password(
+    org_id: UUID4,
+    member_id: UUID4,
+    db: Session = Depends(get_db),
+    admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role)
+):
+    """
+    Send a password reset email to an organization member.
+    Only Admins can perform this action.
+    """
+    try:
+        from ..auth import supabase
+        
+        # Find the member
+        member = db.query(models.OrganizationMember).filter(
+            and_(
+                models.OrganizationMember.id == member_id,
+                models.OrganizationMember.organization_id == org_id
+            )
+        ).first()
+        
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Member not found"
+            )
+        
+        # Get user email from Supabase Auth or invite_email
+        user_email = None
+        if member.user_id:
+            try:
+                # Get user from Supabase Auth
+                users_response = supabase.auth.admin.list_users()
+                users_list = None
+                if users_response:
+                    if isinstance(users_response, list):
+                        users_list = users_response
+                    elif hasattr(users_response, 'users') and users_response.users:
+                        users_list = users_response.users
+                    elif hasattr(users_response, 'data') and users_response.data:
+                        users_list = users_response.data
+                
+                if users_list:
+                    for user in users_list:
+                        if user.id == str(member.user_id):
+                            user_email = user.email
+                            break
+            except Exception as e:
+                logger.warning(f"Failed to fetch user email from Supabase: {str(e)}")
+        
+        if not user_email:
+            # Fall back to invite_email if user_id not available
+            if member.invite_email:
+                user_email = member.invite_email
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot reset password: user email not found"
+                )
+        
+        # Send password reset email
+        supabase.auth.reset_password_for_email(
+            user_email,
+            {
+                "redirect_to": "http://localhost:3000/reset-password"
+            }
+        )
+        
+        logger.info(f"Password reset email requested for {user_email} by admin {admin_member.user.email}")
+        return {"message": f"Password reset email sent to {user_email}"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending password reset email: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send password reset email: {str(e)}"
         )

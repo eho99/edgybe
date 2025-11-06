@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, EmailStr
 import logging
 from .. import models, schemas, auth
 from ..db import get_db
@@ -120,3 +121,47 @@ async def link_invitation_to_user(
         raise HTTPException(status_code=404, detail="No pending invitations found for this user.")
     
     return linked_member
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+@router.post(
+    "/reset-password",
+    response_model=dict
+)
+async def request_password_reset(
+    request: PasswordResetRequest,
+    db: Session = Depends(get_db),
+    user: schemas.SupabaseUser = Depends(auth.get_current_user)
+):
+    """
+    Request a password reset email for the current user.
+    This is a self-service endpoint for users to reset their own password.
+    """
+    try:
+        from ..auth import supabase
+        
+        # Verify the email matches the current user
+        if user.email != request.email:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only request password reset for your own account"
+            )
+        
+        # Send password reset email
+        supabase.auth.reset_password_for_email(
+            request.email,
+            {
+                "redirect_to": "http://localhost:3000/reset-password"
+            }
+        )
+        
+        logger.info(f"Password reset email requested for {request.email}")
+        return {"message": "Password reset email sent successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error generating password reset link for {request.email}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send password reset email: {str(e)}"
+        )
