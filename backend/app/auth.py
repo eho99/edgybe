@@ -1,6 +1,6 @@
 import os
 from fastapi import Depends, HTTPException, Request
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from supabase import create_client, Client
 from supabase_auth.errors import AuthApiError
 from . import schemas
@@ -19,21 +19,20 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token") # We don't use tokenUrl, but it's needed
 
-async def get_current_user(request: Request) -> schemas.SupabaseUser:
-    """Dependency to get the user from Supabase JWT."""
-    auth_header = request.headers.get("Authorization")
-    if not auth_header:
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-    
-    token = auth_header.replace("Bearer ", "")
-    if not token:
-        raise HTTPException(status_code=401, detail="Invalid token format")
+# Replace OAuth2PasswordBearer with HTTPBearer for Bearer tokens
+bearer_scheme = HTTPBearer()
 
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)
+) -> schemas.SupabaseUser:
+    """Dependency to get the user from Supabase JWT."""
+    token = credentials.credentials
+    
     try:
         user_response = supabase.auth.get_user(token)
         user = user_response.user
         if not user:
-             raise HTTPException(status_code=401, detail="Invalid token or user not found")
+            raise HTTPException(status_code=401, detail="Invalid token or user not found")
         
         return schemas.SupabaseUser(id=user.id, email=user.email)
     
