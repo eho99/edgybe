@@ -293,7 +293,11 @@ class InvitationService:
             
             # Check if invitation is expired
             now = datetime.now(timezone.utc)
-            is_expired = invitation.expires_at < now
+            # Ensure expires_at is timezone-aware (assume UTC if naive)
+            expires_at = invitation.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            is_expired = expires_at < now
             
             # Resend the invitation via Supabase
             try:
@@ -317,7 +321,7 @@ class InvitationService:
                 invitation.sent_at = now
                 
                 # If invitation was expired or close to expiring, extend expiration by 7 days
-                if is_expired or (invitation.expires_at - now).days < 1:
+                if is_expired or (expires_at - now).days < 1:
                     invitation.expires_at = now + timedelta(days=7)
                     logger.info(f"Extended expiration date for invitation {invitation_id}")
                 

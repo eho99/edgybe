@@ -126,8 +126,17 @@ async def list_accounts(
                 
                 if users_list:
                     for user in users_list:
-                        if user.id in user_ids:
-                            user_emails[user.id] = user.email
+                        # Convert user.id to UUID if it's a string (Supabase returns strings)
+                        user_id = user.id
+                        if isinstance(user_id, str):
+                            from uuid import UUID
+                            try:
+                                user_id = UUID(user_id)
+                            except (ValueError, AttributeError):
+                                continue
+                        
+                        if user_id in user_ids:
+                            user_emails[user_id] = user.email
             except Exception as e:
                 # Log error but continue - we'll show None for email if we can't fetch it
                 logger.warning(f"Failed to fetch user emails from Supabase: {str(e)}")

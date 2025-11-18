@@ -10,3 +10,4 @@ supabase_auth
 pydantic[email]
 python-jose[cryptography]
 pytest
+pytest-asyncio

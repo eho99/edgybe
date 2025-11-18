@@ -1,73 +1,66 @@
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from app.main import app
-from app.models import Invitation, Profile, InvitationStatus, OrgRole
-from app.schemas.auth import AuthenticatedMember, SupabaseUser
+from app.models import Invitation, Profile, InvitationStatus, OrgRole, Organization, OrganizationMember, MemberStatus
 
 
 @pytest.fixture
-def client():
-    return TestClient(app)
-
-
-@pytest.fixture
-def mock_auth_member():
-    return AuthenticatedMember(
-        user=SupabaseUser(id=uuid4(), email="admin@example.com"),
-        org_id=uuid4(),
-        role=OrgRole.admin
+def test_org(db_session, mock_user):
+    """Create a test organization with admin member."""
+    org = Organization(id=uuid4(), name="Test Organization")
+    db_session.add(org)
+    
+    # Create admin member for the mock_user
+    admin_member = OrganizationMember(
+        organization_id=org.id,
+        user_id=mock_user.id,
+        role=OrgRole.admin,
+        status=MemberStatus.active
     )
-
-
-@pytest.fixture
-def sample_invitation():
-    return Invitation(
-        id=uuid4(),
-        organization_id=uuid4(),
-        email="test@example.com",
-        role=OrgRole.staff,
-        inviter_id=uuid4(),
-        status=InvitationStatus.pending,
-        sent_at=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(days=7),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
-    )
-
-
-@pytest.fixture
-def sample_inviter():
-    return Profile(
-        id=uuid4(),
+    db_session.add(admin_member)
+    
+    # Create inviter profile
+    inviter_profile = Profile(
+        id=mock_user.id,
         full_name="Admin User",
         has_completed_profile=True
     )
+    db_session.add(inviter_profile)
+    
+    db_session.commit()
+    db_session.refresh(org)
+    return org
+
+
+@pytest.fixture
+def sample_invitation(db_session, test_org, mock_user):
+    """Create a sample invitation in the database."""
+    invitation = Invitation(
+        id=uuid4(),
+        organization_id=test_org.id,
+        email="test@example.com",
+        role=OrgRole.staff,
+        inviter_id=mock_user.id,
+        status=InvitationStatus.pending,
+        sent_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    db_session.add(invitation)
+    db_session.commit()
+    db_session.refresh(invitation)
+    return invitation
 
 
 class TestInvitationEndpoints:
     
-    @patch('app.routers.invitations.auth.require_admin_role')
-    @patch('app.routers.invitations.get_db')
-    def test_list_invitations_success(self, mock_get_db, mock_require_admin, client, mock_auth_member, sample_invitation, sample_inviter):
+    def test_list_invitations_success(self, client: TestClient, test_org, sample_invitation):
         """Test successful listing of invitations"""
-        # Setup
-        mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
-        mock_require_admin.return_value = mock_auth_member
+        response = client.get(f"/api/v1/organizations/{test_org.id}/invitations")
         
-        # Mock database queries
-        mock_db.query.return_value.filter.return_value.count.return_value = 1
-        mock_db.query.return_value.filter.return_value.offset.return_value.limit.return_value.all.return_value = [sample_invitation]
-        mock_db.query.return_value.filter.return_value.first.return_value = sample_inviter
-        
-        # Execute
-        response = client.get(f"/api/v1/organizations/{mock_auth_member.org_id}/invitations")
-        
-        # Verify
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 1
@@ -75,72 +68,111 @@ class TestInvitationEndpoints:
         assert data["invitations"][0]["email"] == "test@example.com"
         assert data["invitations"][0]["status"] == "pending"
         assert data["invitations"][0]["inviter_name"] == "Admin User"
-    
-    @patch('app.routers.invitations.auth.require_admin_role')
-    @patch('app.routers.invitations.get_db')
-    def test_list_invitations_with_filters(self, mock_get_db, mock_require_admin, client, mock_auth_member, sample_invitation):
-        """Test listing invitations with status filter and search"""
-        # Setup
-        mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
-        mock_require_admin.return_value = mock_auth_member
-        
-        mock_db.query.return_value.filter.return_value.count.return_value = 1
-        mock_db.query.return_value.filter.return_value.offset.return_value.limit.return_value.all.return_value = [sample_invitation]
-        mock_db.query.return_value.filter.return_value.first.return_value = None
-        
-        # Execute with filters
-        response = client.get(
-            f"/api/v1/organizations/{mock_auth_member.org_id}/invitations",
-            params={
-                "status_filter": "pending",
-                "search": "test@example.com",
-                "page": 1,
-                "per_page": 10
-            }
-        )
-        
-        # Verify
-        assert response.status_code == 200
-        data = response.json()
         assert data["page"] == 1
         assert data["per_page"] == 10
     
-    @patch('app.routers.invitations.auth.require_admin_role')
-    @patch('app.routers.invitations.get_db')
-    def test_list_invitations_invalid_status_filter(self, mock_get_db, mock_require_admin, client, mock_auth_member):
-        """Test listing invitations with invalid status filter"""
-        # Setup
-        mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
-        mock_require_admin.return_value = mock_auth_member
+    def test_list_invitations_with_filters(self, client: TestClient, db_session, test_org, sample_invitation):
+        """Test listing invitations with status filter and search"""
+        # Create another invitation with different status
+        accepted_invitation = Invitation(
+            id=uuid4(),
+            organization_id=test_org.id,
+            email="accepted@example.com",
+            role=OrgRole.staff,
+            inviter_id=sample_invitation.inviter_id,
+            status=InvitationStatus.accepted,
+            sent_at=datetime.now(timezone.utc),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
+        )
+        db_session.add(accepted_invitation)
+        db_session.commit()
         
-        # Execute with invalid status
+        # Test with status filter
         response = client.get(
-            f"/api/v1/organizations/{mock_auth_member.org_id}/invitations",
+            f"/api/v1/organizations/{test_org.id}/invitations",
+            params={"status_filter": "pending"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert all(inv["status"] == "pending" for inv in data["invitations"])
+        
+        # Test with search
+        response = client.get(
+            f"/api/v1/organizations/{test_org.id}/invitations",
+            params={"search": "test@example.com"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["invitations"][0]["email"] == "test@example.com"
+    
+    def test_list_invitations_invalid_status_filter(self, client: TestClient, test_org):
+        """Test listing invitations with invalid status filter"""
+        response = client.get(
+            f"/api/v1/organizations/{test_org.id}/invitations",
             params={"status_filter": "invalid_status"}
         )
         
-        # Verify
         assert response.status_code == 400
         assert "Invalid status filter" in response.json()["detail"]
     
-    @patch('app.routers.invitations.auth.require_admin_role')
-    @patch('app.routers.invitations.get_db')
-    def test_get_invitation_stats(self, mock_get_db, mock_require_admin, client, mock_auth_member):
+    def test_get_invitation_stats(self, client: TestClient, db_session, test_org):
         """Test getting invitation statistics"""
-        # Setup
-        mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
-        mock_require_admin.return_value = mock_auth_member
+        # Create invitations with different statuses
+        invitations = [
+            Invitation(
+                id=uuid4(),
+                organization_id=test_org.id,
+                email=f"pending{i}@example.com",
+                role=OrgRole.staff,
+                inviter_id=uuid4(),
+                status=InvitationStatus.pending,
+                sent_at=datetime.now(timezone.utc),
+                expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
+            ) for i in range(2)
+        ]
+        invitations.extend([
+            Invitation(
+                id=uuid4(),
+                organization_id=test_org.id,
+                email=f"accepted{i}@example.com",
+                role=OrgRole.staff,
+                inviter_id=uuid4(),
+                status=InvitationStatus.accepted,
+                sent_at=datetime.now(timezone.utc),
+                expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
+            ) for i in range(5)
+        ])
+        invitations.append(
+            Invitation(
+                id=uuid4(),
+                organization_id=test_org.id,
+                email="expired@example.com",
+                role=OrgRole.staff,
+                inviter_id=uuid4(),
+                status=InvitationStatus.expired,
+                sent_at=datetime.now(timezone.utc),
+                expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
+            )
+        )
         
-        # Mock count queries for different statuses
-        mock_db.query.return_value.filter.return_value.count.side_effect = [2, 5, 1, 0]  # pending, accepted, expired, cancelled
+        for inv in invitations:
+            db_session.add(inv)
+        db_session.commit()
         
-        # Execute
-        response = client.get(f"/api/v1/organizations/{mock_auth_member.org_id}/invitations/stats")
+        response = client.get(f"/api/v1/organizations/{test_org.id}/invitations/stats")
         
-        # Verify
         assert response.status_code == 200
         data = response.json()
         assert data["pending"] == 2
@@ -149,117 +181,68 @@ class TestInvitationEndpoints:
         assert data["cancelled"] == 0
         assert data["total"] == 8
     
-    @patch('app.routers.invitations.auth.require_admin_role')
-    @patch('app.routers.invitations.get_invitation_service')
-    @patch('app.routers.invitations.get_db')
-    def test_resend_invitation_success(self, mock_get_db, mock_get_service, mock_require_admin, client, mock_auth_member, sample_invitation, sample_inviter):
+    def test_resend_invitation_success(self, client: TestClient, sample_invitation, test_org, mock_supabase_client):
         """Test successful resend of invitation"""
-        # Setup
-        mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
-        mock_require_admin.return_value = mock_auth_member
+        # Mock Supabase invite response - the service doesn't use the return value, just checks for exceptions
+        # So we can return any value or None
+        mock_supabase_client.auth.admin.invite_user_by_email.return_value = None
         
-        # Mock invitation service
-        mock_service = MagicMock()
-        mock_service.resend_invitation = MagicMock(return_value=(True, "Invitation resent successfully"))
-        mock_get_service.return_value = mock_service
+        response = client.post(f"/api/v1/organizations/{test_org.id}/invitations/{sample_invitation.id}/resend")
         
-        # Mock database queries for fetching invitation after resend
-        mock_db.query.return_value.filter.return_value.first.side_effect = [sample_invitation, sample_inviter]
-        
-        # Execute
-        response = client.post(f"/api/v1/organizations/{mock_auth_member.org_id}/invitations/{sample_invitation.id}/resend")
-        
-        # Verify
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}. Response: {response.text}"
         data = response.json()
         assert data["email"] == "test@example.com"
         assert data["status"] == "pending"
-        mock_service.resend_invitation.assert_called_once_with(
-            invitation_id=sample_invitation.id,
-            org_id=mock_auth_member.org_id
-        )
+        # Verify Supabase was called
+        mock_supabase_client.auth.admin.invite_user_by_email.assert_called_once()
     
-    @patch('app.routers.invitations.auth.require_admin_role')
-    @patch('app.routers.invitations.get_invitation_service')
-    @patch('app.routers.invitations.get_db')
-    def test_resend_invitation_not_found(self, mock_get_db, mock_get_service, mock_require_admin, client, mock_auth_member):
+    def test_resend_invitation_not_found(self, client: TestClient, test_org):
         """Test resend invitation when invitation not found"""
-        # Setup
-        mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
-        mock_require_admin.return_value = mock_auth_member
+        fake_id = uuid4()
+        response = client.post(f"/api/v1/organizations/{test_org.id}/invitations/{fake_id}/resend")
         
-        # Mock invitation service returning not found
-        mock_service = MagicMock()
-        mock_service.resend_invitation = MagicMock(return_value=(False, "Invitation not found"))
-        mock_get_service.return_value = mock_service
-        
-        # Execute
-        response = client.post(f"/api/v1/organizations/{mock_auth_member.org_id}/invitations/{uuid4()}/resend")
-        
-        # Verify
         assert response.status_code == 404
-        assert "Invitation not found" in response.json()["detail"]
+        assert "not found" in response.json()["detail"].lower()
     
-    @patch('app.routers.invitations.auth.require_admin_role')
-    @patch('app.routers.invitations.get_invitation_service')
-    @patch('app.routers.invitations.get_db')
-    def test_resend_invitation_wrong_status(self, mock_get_db, mock_get_service, mock_require_admin, client, mock_auth_member, sample_invitation):
+    def test_resend_invitation_wrong_status(self, client: TestClient, db_session, test_org, sample_invitation):
         """Test resend invitation when invitation is not pending"""
-        # Setup
-        mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
-        mock_require_admin.return_value = mock_auth_member
+        # Change status to accepted
+        sample_invitation.status = InvitationStatus.accepted
+        db_session.commit()
         
-        # Mock invitation service returning wrong status error
-        mock_service = MagicMock()
-        mock_service.resend_invitation = MagicMock(return_value=(False, "Cannot resend invitation with status: accepted"))
-        mock_get_service.return_value = mock_service
+        response = client.post(f"/api/v1/organizations/{test_org.id}/invitations/{sample_invitation.id}/resend")
         
-        # Execute
-        response = client.post(f"/api/v1/organizations/{mock_auth_member.org_id}/invitations/{sample_invitation.id}/resend")
-        
-        # Verify
         assert response.status_code == 400
         assert "status" in response.json()["detail"].lower()
     
-    @patch('app.routers.invitations.auth.require_admin_role')
-    @patch('app.routers.invitations.get_db')
-    def test_cancel_invitation_success(self, mock_get_db, mock_require_admin, client, mock_auth_member, sample_invitation):
+    def test_cancel_invitation_success(self, client: TestClient, db_session, sample_invitation, test_org):
         """Test successful cancellation of invitation"""
-        # Setup
-        mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
-        mock_require_admin.return_value = mock_auth_member
+        assert sample_invitation.status == InvitationStatus.pending
         
-        mock_db.query.return_value.filter.return_value.first.return_value = sample_invitation
+        response = client.delete(f"/api/v1/organizations/{test_org.id}/invitations/{sample_invitation.id}")
         
-        # Execute
-        response = client.delete(f"/api/v1/organizations/{mock_auth_member.org_id}/invitations/{sample_invitation.id}")
-        
-        # Verify
         assert response.status_code == 200
-        assert "Invitation cancelled successfully" in response.json()["message"]
+        assert "cancelled successfully" in response.json()["message"].lower()
+        
+        # Verify status changed in DB
+        db_session.refresh(sample_invitation)
         assert sample_invitation.status == InvitationStatus.cancelled
-        mock_db.commit.assert_called_once()
     
-    @patch('app.routers.invitations.auth.require_admin_role')
-    @patch('app.routers.invitations.get_db')
-    def test_cancel_invitation_not_found(self, mock_get_db, mock_require_admin, client, mock_auth_member):
+    def test_cancel_invitation_not_found(self, client: TestClient, test_org):
         """Test cancel invitation when invitation not found"""
-        # Setup
-        mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
-        mock_require_admin.return_value = mock_auth_member
+        fake_id = uuid4()
+        response = client.delete(f"/api/v1/organizations/{test_org.id}/invitations/{fake_id}")
         
-        mock_db.query.return_value.filter.return_value.first.return_value = None
-        
-        # Execute
-        response = client.delete(f"/api/v1/organizations/{mock_auth_member.org_id}/invitations/{uuid4()}")
-        
-        # Verify
         assert response.status_code == 404
-        assert "Invitation not found" in response.json()["detail"]
-
-
+        assert "not found" in response.json()["detail"].lower()
+    
+    def test_cancel_invitation_non_pending(self, client: TestClient, db_session, sample_invitation, test_org):
+        """Test cancel invitation when invitation is not pending"""
+        # Change status to accepted
+        sample_invitation.status = InvitationStatus.accepted
+        db_session.commit()
+        
+        response = client.delete(f"/api/v1/organizations/{test_org.id}/invitations/{sample_invitation.id}")
+        
+        assert response.status_code == 400
+        assert "pending" in response.json()["detail"].lower()
