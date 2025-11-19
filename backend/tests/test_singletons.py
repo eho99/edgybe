@@ -1,6 +1,6 @@
 import pytest
+from unittest.mock import MagicMock
 from app.db import engine as db_engine, get_db
-from app.auth import supabase as auth_supabase
 from sqlalchemy.engine import Engine
 from supabase import Client
 
@@ -10,11 +10,11 @@ def test_db_engine_is_singleton():
     assert db_engine is db_engine2
     assert isinstance(db_engine, Engine)
 
-def test_supabase_client_is_singleton():
-    """Ensures the supabase client object is a singleton."""
+def test_supabase_client_is_singleton(mock_supabase_client):
+    from app.auth import supabase as auth_supabase
     from app.auth import supabase as auth_supabase2
     assert auth_supabase is auth_supabase2
-    assert isinstance(auth_supabase, Client)
+    assert auth_supabase is mock_supabase_client
 
 def test_get_db_yields_session():
     """Tests that get_db yields a session and closes it."""

@@ -1,12 +1,11 @@
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from app.services.invitations import InvitationService
 from app.models import Invitation, OrganizationMember, Profile, Organization, InvitationStatus, OrgRole, MemberStatus
-from app.schemas.user import UserInviteRequest
 
 
 @pytest.fixture
@@ -360,38 +359,45 @@ class TestReactivationFlow:
         email = 'reactivate@example.com'
         role = OrgRole.staff
         inviter_id = uuid4()
-        
-        # Mock existing user in Supabase Auth
+
+        # Mock Supabase user - service converts string UUIDs to UUID objects
         mock_supabase_user = MagicMock()
-        mock_supabase_user.id = user_id
+        mock_supabase_user.id = str(user_id)  # Supabase returns string UUIDs
         mock_supabase_user.email = email
         
         mock_auth_response = MagicMock()
         mock_auth_response.data = [mock_supabase_user]
         mock_supabase.auth.admin.list_users.return_value = mock_auth_response
         
-        # Mock existing profile - service checks has_completed_profile and may update it
+        # Mock existing profile
         mock_profile = MagicMock()
-        mock_profile.id = user_id
+        mock_profile.id = user_id  # Service converts to UUID, so use UUID here
         mock_profile.full_name = "Test User"
-        mock_profile.has_completed_profile = True  # Existing user should have completed profile
+        mock_profile.has_completed_profile = True
         
-        # Mock inactive membership - use MagicMock to allow attribute modification
+        # Mock inactive membership - this is what needs to be found by the query
         mock_inactive_member = MagicMock()
         mock_inactive_member.user_id = user_id
         mock_inactive_member.organization_id = org_id
         mock_inactive_member.status = MemberStatus.inactive
         mock_inactive_member.role = OrgRole.staff
         
-        # Setup query chain - service queries Profile first, then OrganizationMember
-        # The service does: db.query(Profile).filter(...).first() then db.query(OrganizationMember).filter(...).first()
+        # Setup query chain - service makes TWO separate queries:
+        # 1. db.query(Profile).filter(Profile.id == user_id).first()
+        # 2. db.query(OrganizationMember).filter(user_id == user_id, org_id == org_id).first()
+        query_call_count = {'count': 0}  # Track which query we're on
+        
         def query_side_effect(model):
             query_mock = MagicMock()
             filter_mock = MagicMock()
+            
             if model == Profile:
+                # First query: Profile lookup
                 filter_mock.first.return_value = mock_profile
             elif model == OrganizationMember:
+                # Second query: OrganizationMember lookup (this is the reactivation check)
                 filter_mock.first.return_value = mock_inactive_member
+            
             query_mock.filter.return_value = filter_mock
             return query_mock
         
@@ -404,10 +410,11 @@ class TestReactivationFlow:
             role=role,
             inviter_id=inviter_id
         )
-        
-        # Verify - result is the member object that was modified
+
+        # Verify - result should be the same member object that was modified
         assert result is not None
-        assert result is mock_inactive_member  # Service returns the same member object it found/modified
+        # The service modifies the member in place, so result should be mock_inactive_member
+        assert result is mock_inactive_member
         # Verify reactivation: status changed to active
         assert mock_inactive_member.status == MemberStatus.active
         # Verify role was updated
@@ -420,7 +427,7 @@ class TestReactivationFlow:
         mock_db_session.commit.assert_called_once()
         # Verify refresh was called on the member
         mock_db_session.refresh.assert_called()
-        # Verify no new membership was created
+        # Verify no new membership was created (we're reactivating, not creating)
         mock_db_session.add.assert_not_called()
     
     @patch('app.services.invitations.supabase')
@@ -433,10 +440,10 @@ class TestReactivationFlow:
         new_role = OrgRole.secretary  # Different role
         inviter_id = uuid4()
         
-        # Mock existing user in Supabase Auth
+        # Mock existing user in Supabase Auth - set email as real attribute
         mock_supabase_user = MagicMock()
-        mock_supabase_user.id = user_id
-        mock_supabase_user.email = email
+        mock_supabase_user.id = str(user_id) if not isinstance(user_id, str) else user_id
+        object.__setattr__(mock_supabase_user, 'email', email)
         
         mock_auth_response = MagicMock()
         mock_auth_response.data = [mock_supabase_user]
@@ -447,12 +454,12 @@ class TestReactivationFlow:
         mock_profile.id = user_id
         mock_profile.has_completed_profile = True  # Existing user should have completed profile
         
-        # Mock inactive membership with different role - use MagicMock
+        # Mock inactive membership with different role - set attributes as real values
         mock_inactive_member = MagicMock()
-        mock_inactive_member.user_id = user_id
-        mock_inactive_member.organization_id = org_id
-        mock_inactive_member.status = MemberStatus.inactive
-        mock_inactive_member.role = OrgRole.staff  # Old role
+        object.__setattr__(mock_inactive_member, 'user_id', user_id)
+        object.__setattr__(mock_inactive_member, 'organization_id', org_id)
+        object.__setattr__(mock_inactive_member, 'status', MemberStatus.inactive)
+        object.__setattr__(mock_inactive_member, 'role', OrgRole.staff)  # Old role
         
         # Setup query chain
         def query_side_effect(model):
@@ -466,6 +473,7 @@ class TestReactivationFlow:
             return query_mock
         
         mock_db_session.query.side_effect = query_side_effect
+        invitation_service.db = mock_db_session
         
         # Execute
         result = await invitation_service.invite_or_add_user_to_org(
@@ -497,10 +505,10 @@ class TestReactivationFlow:
         new_role = OrgRole.secretary
         inviter_id = uuid4()
         
-        # Mock existing user in Supabase Auth
+        # Mock existing user in Supabase Auth - set email as real attribute
         mock_supabase_user = MagicMock()
-        mock_supabase_user.id = user_id
-        mock_supabase_user.email = email
+        mock_supabase_user.id = str(user_id) if not isinstance(user_id, str) else user_id
+        object.__setattr__(mock_supabase_user, 'email', email)
         
         mock_auth_response = MagicMock()
         mock_auth_response.data = [mock_supabase_user]
@@ -511,12 +519,12 @@ class TestReactivationFlow:
         mock_profile.id = user_id
         mock_profile.has_completed_profile = True  # Existing user should have completed profile
         
-        # Mock active membership - use MagicMock
+        # Mock active membership - set attributes as real values
         mock_active_member = MagicMock()
-        mock_active_member.user_id = user_id
-        mock_active_member.organization_id = org_id
-        mock_active_member.status = MemberStatus.active
-        mock_active_member.role = OrgRole.staff
+        object.__setattr__(mock_active_member, 'user_id', user_id)
+        object.__setattr__(mock_active_member, 'organization_id', org_id)
+        object.__setattr__(mock_active_member, 'status', MemberStatus.active)
+        object.__setattr__(mock_active_member, 'role', OrgRole.staff)
         
         # Setup query chain
         def query_side_effect(model):
@@ -530,6 +538,7 @@ class TestReactivationFlow:
             return query_mock
         
         mock_db_session.query.side_effect = query_side_effect
+        invitation_service.db = mock_db_session
         
         # Execute
         result = await invitation_service.invite_or_add_user_to_org(

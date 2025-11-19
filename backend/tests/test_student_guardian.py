@@ -255,3 +255,50 @@ def test_delete_nonexistent_link(client: TestClient):
     
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
+
+def test_link_guardian_with_wrong_role(client: TestClient, db_session):
+    """
+    Test that we cannot link a user as a 'guardian' if their org role 
+    is actually 'student' or 'admin' (depending on strictness).
+    """
+    # Create another student in the same org
+    other_student_id = uuid.uuid4()
+    other_student_profile = Profile(id=other_student_id, full_name="Other Student")
+    db_session.add(other_student_profile)
+    
+    # Add them to org as a STUDENT
+    other_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=other_student_id,
+        role=OrgRole.student, # <--- Important: They are a student
+        status=MemberStatus.active
+    )
+    db_session.add(other_student_member)
+    db_session.commit()
+
+    link_data = {
+        "guardian_id": str(other_student_id), # Trying to use a student as a guardian
+        "student_id": str(mock_student_uuid),
+        "relationship_type": "primary"
+    }
+    url = f"/api/v1/organizations/{mock_org_uuid}/guardians/link"
+    response = client.post(url, json=link_data)
+    
+    # This asserts that your Service layer checks roles. 
+    # If this fails with 200, your service is too permissive.
+    assert response.status_code == 400 
+    assert "role" in response.json()["detail"].lower()
+
+
+def test_prevent_self_guardianship(client: TestClient):
+    """Test that a student cannot be their own guardian"""
+    link_data = {
+        "guardian_id": str(mock_student_uuid),
+        "student_id": str(mock_student_uuid),
+        "relationship_type": "primary"
+    }
+    url = f"/api/v1/organizations/{mock_org_uuid}/guardians/link"
+    response = client.post(url, json=link_data)
+    
+    assert response.status_code == 400
+    assert "cannot be their own guardian" in response.json()["detail"].lower()

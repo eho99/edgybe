@@ -16,130 +16,149 @@ class InvitationService:
     def __init__(self, db: Session):
         self.db = db
 
-    async def invite_or_add_user_to_org(
-        self,
-        org_id: UUID4,
-        email: EmailStr,
-        role: models.OrgRole,
-        full_name: str | None = None,
-        inviter_id: UUID4 | None = None
-    ) -> models.OrganizationMember:
+    def _find_user_in_supabase(self, email: EmailStr):
         """
-        Main service function.
-        1. Checks if user exists in Supabase Auth.
-        2. If not, invites them and creates a local profile.
-        3. If so, fetches their local profile.
-        4. Checks if they are already in the org.
-        5. If not, adds them. If so, updates their role.
-        """
+        Find a user in Supabase Auth by email.
         
-        profile = None
-        user_id = None
+        Returns:
+            User object if found, None otherwise
+        """
+        logger.info(f"Checking if user {email} exists in Supabase Auth")
+        users_response = supabase.auth.admin.list_users()  # TODO: this is inefficient to index in O(n)
+        
+        if not users_response:
+            logger.info(f"No users found in Supabase Auth response for {email}")
+            return None
+        
+        # Handle different response formats: list directly or response object with .users/.data
+        users_list = None
+        if isinstance(users_response, list):
+            # Direct list of User objects
+            users_list = users_response
+        elif hasattr(users_response, 'users') and users_response.users:
+            # Response object with .users attribute
+            users_list = users_response.users
+        elif hasattr(users_response, 'data') and users_response.data:
+            # Response object with .data attribute
+            users_list = users_response.data
+        
+        if not users_list:
+            logger.info(f"Users list is empty for {email}")
+            return None
+        
+        # Search for user by email
+        for user in users_list:
+            # Get email attribute - handle both string attributes and MagicMock
+            user_email = getattr(user, 'email', None)
+            if user_email == email:
+                logger.info(f"Found user {email} in Supabase Auth")
+                return user
+        
+        logger.info(f"User {email} not found in Supabase Auth")
+        return None
 
-        try:
-            logger.info(f"Checking if user {email} exists in Supabase Auth")
-            users_response = supabase.auth.admin.list_users() # TODO: this is inefficient to index in O(n)
-            existing_user = None
+    def _handle_existing_user(self, existing_user, email: EmailStr, full_name: str | None) -> tuple[UUID4, models.Profile]:
+        """
+        Handle the case where user exists in Supabase Auth.
+        Ensures profile exists and is marked as completed.
+        
+        Returns:
+            Tuple of (user_id, profile)
+        """
+        user_id = existing_user.id
+        # Convert to UUID if it's a string (Supabase returns string UUIDs)
+        if isinstance(user_id, str):
+            from uuid import UUID
+            user_id = UUID(user_id)
+        
+        logger.info(f"User {email} found in Auth with ID: {user_id}")
+        
+        # Get or create profile
+        profile = self.db.query(models.Profile).filter(
+            models.Profile.id == user_id
+        ).first()
+        
+        if not profile:
+            # User is in auth but not our DB? (Edge case - likely reactivation scenario)
+            logger.warning(f"User {email} exists in Auth but not in Profile DB. Creating profile with completed status.")
+            profile = self._create_local_profile(
+                user_id=user_id,
+                full_name=full_name or getattr(existing_user, 'email', email),
+                has_completed_profile=True  # Existing users should be marked as completed
+            )
+        else:
+            # Profile exists - ensure it's marked as completed for reactivated users
+            if not profile.has_completed_profile:
+                logger.info(f"User {email} has existing profile with incomplete status. Marking as completed for reactivation.")
+                profile.has_completed_profile = True
+            if full_name and not profile.full_name:
+                profile.full_name = full_name
+        
+        return user_id, profile
 
-            # Handle different response formats: list directly or response object with .users/.data
-            users_list = None
-            if users_response:
-                if isinstance(users_response, list):
-                    # Direct list of User objects
-                    users_list = users_response
-                elif hasattr(users_response, 'users') and users_response.users:
-                    # Response object with .users attribute
-                    users_list = users_response.users
-                elif hasattr(users_response, 'data') and users_response.data:
-                    # Response object with .data attribute
-                    users_list = users_response.data
-            
-            if users_list:
-                for user in users_list:
-                    if user.email == email:
-                        existing_user = user
-                        break
-            
-            if existing_user:
-                user_id = existing_user.id
-                logger.info(f"User {email} found in Auth with ID: {user_id}")
-                
-                profile = self.db.query(models.Profile).filter(
-                    models.Profile.id == user_id
-                ).first()
-                
-                if not profile:
-                    # User is in auth but not our DB? (Edge case - likely reactivation scenario)
-                    # Since they're an existing user in Auth, mark profile as completed
-                    logger.warning(f"User {email} exists in Auth but not in Profile DB. Creating profile with completed status.")
-                    profile = self._create_local_profile(
-                        user_id=user_id,
-                        full_name=full_name or existing_user.email,
-                        has_completed_profile=True  # Existing users should be marked as completed
-                    )
-                else:
-                    # Profile exists - ensure it's marked as completed for reactivated users
-                    # This handles cases where profile was created with incomplete status
-                    if not profile.has_completed_profile:
-                        logger.info(f"User {email} has existing profile with incomplete status. Marking as completed for reactivation.")
-                        profile.has_completed_profile = True
-                        if full_name and not profile.full_name:
-                            profile.full_name = full_name
-            else:
-                # User does NOT exist in Auth. Invite them.
-                logger.info(f"User {email} not found in Auth. Inviting...")
-                invite_response = supabase.auth.admin.invite_user_by_email(
-                    email,
-                    options={
-                        "redirect_to": "http://localhost:3000/invite-profile-completion"
-                    }
-                )
-                
-                logger.info(f"Invite response type: {type(invite_response)}")
-                logger.info(f"Invite response: {invite_response}")
-                
-                # Create invitation record for tracking
-                invitation = models.Invitation(
-                    organization_id=org_id,
-                    email=email,
-                    role=role,
-                    inviter_id=inviter_id,  # Use the actual inviter's user ID
-                    status=models.InvitationStatus.pending
-                )
-                self.db.add(invitation)
-                
-                # Do NOT create a temporary profile. Create a pending membership tied to invite_email.
-                member = models.OrganizationMember(
-                    organization_id=org_id,
-                    user_id=None,               # unknown until the user signs up
-                    invite_email=email,         # used to link after acceptance
-                    role=role,
-                    status=models.MemberStatus.active
-                )
-                self.db.add(member)
-                self.db.commit()
-                self.db.refresh(member)
-                self.db.refresh(invitation)
-                
-                logger.info(f"Invitation sent to {email}. Created invitation record and pending organization membership. Will link on acceptance.")
-                return member
-            
-        except Exception as e:
-            logger.error(f"Error in invitation process: {str(e)}")
-            raise Exception(f"Failed to process invitation for {email}: {str(e)}")
+    def _handle_new_user(self, email: EmailStr, org_id: UUID4, role: models.OrgRole, inviter_id: UUID4 | None) -> models.OrganizationMember:
+        """
+        Handle the case where user does NOT exist in Supabase Auth.
+        Sends invitation and creates pending membership.
+        
+        Returns:
+            OrganizationMember with user_id=None (pending invitation)
+        """
+        logger.info(f"User {email} not found in Auth. Inviting...")
+        
+        # Send invitation via Supabase
+        invite_response = supabase.auth.admin.invite_user_by_email(
+            email,
+            options={
+                "redirect_to": "http://localhost:3000/invite-profile-completion"
+            }
+        )
+        
+        logger.info(f"Invite response type: {type(invite_response)}")
+        logger.info(f"Invite response: {invite_response}")
+        
+        # Create invitation record for tracking
+        invitation = models.Invitation(
+            organization_id=org_id,
+            email=email,
+            role=role,
+            inviter_id=inviter_id,
+            status=models.InvitationStatus.pending
+        )
+        self.db.add(invitation)
+        
+        # Create pending membership tied to invite_email (user_id will be set when they accept)
+        member = models.OrganizationMember(
+            organization_id=org_id,
+            user_id=None,  # unknown until the user signs up
+            invite_email=email,  # used to link after acceptance
+            role=role,
+            status=models.MemberStatus.active  # Active by default, they just need to accept
+        )
+        self.db.add(member)
+        self.db.commit()
+        self.db.refresh(member)
+        self.db.refresh(invitation)
+        
+        logger.info(f"Invitation sent to {email}. Created invitation record and pending organization membership. Will link on acceptance.")
+        return member
 
-        # Ensure user_id is set before checking membership
-        if not user_id:
-            raise Exception(f"User ID not set for email {email}. Cannot proceed with membership check.")
-
-        # 4. Check if they are already in the organization (regardless of status)
+    def _handle_organization_membership(self, user_id: UUID4, email: EmailStr, org_id: UUID4, role: models.OrgRole) -> models.OrganizationMember:
+        """
+        Handle organization membership for an existing user.
+        Either reactivates inactive membership, updates role, or creates new membership.
+        
+        Returns:
+            OrganizationMember
+        """
+        # Check if user is already in the organization
         member = self.db.query(models.OrganizationMember).filter(
             models.OrganizationMember.user_id == user_id,
             models.OrganizationMember.organization_id == org_id
         ).first()
 
         if member:
-            # 5. User is already in org (could be active or inactive)
+            # User is already in org
             if member.status == models.MemberStatus.inactive:
                 # Reactivate the account and update role
                 logger.info(f"User {email} has inactive membership in org {org_id}. Reactivating and updating role to {role}.")
@@ -164,7 +183,7 @@ class InvitationService:
                 logger.info(f"User {email} already active in org {org_id}. Updating role to {role}.")
                 member.role = role
         else:
-            # 5. User is not in org. Add them.
+            # User is not in org. Add them.
             logger.info(f"Adding new user {email} to org {org_id} with role {role}.")
             member = models.OrganizationMember(
                 organization_id=org_id,
@@ -174,13 +193,48 @@ class InvitationService:
             )
             self.db.add(member)
 
-        # Commit all changes (new profile, new member, or role update)
-        self.db.commit()
-        self.db.refresh(member)
-        # Refresh profile if it was updated
-        if profile:
-            self.db.refresh(profile)
         return member
+
+    async def invite_or_add_user_to_org(
+        self,
+        org_id: UUID4,
+        email: EmailStr,
+        role: models.OrgRole,
+        full_name: str | None = None,
+        inviter_id: UUID4 | None = None
+    ) -> models.OrganizationMember:
+        """
+        Main service function to invite or add a user to an organization.
+        
+        Flow:
+        1. Check if user exists in Supabase Auth
+        2a. If NOT found: Send invitation, create pending membership (returns early)
+        2b. If found: Get/create profile, then handle organization membership
+        3. Return the membership record
+        
+        Returns:
+            OrganizationMember (either pending with user_id=None, or active with user_id set)
+        """
+        try:
+            existing_user = self._find_user_in_supabase(email)
+            
+            if not existing_user:
+                return self._handle_new_user(email, org_id, role, inviter_id)
+            
+            user_id, profile = self._handle_existing_user(existing_user, email, full_name)
+            
+            member = self._handle_organization_membership(user_id, email, org_id, role)
+            
+            self.db.commit()
+            self.db.refresh(member)
+            if profile:
+                self.db.refresh(profile)
+            
+            return member
+            
+        except Exception as e:
+            logger.error(f"Error in invitation process for {email}: {str(e)}")
+            raise Exception(f"Failed to process invitation for {email}: {str(e)}")
 
     def _create_local_profile(
         self, user_id: UUID4, full_name: str | None, has_completed_profile: bool = False
