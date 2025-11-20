@@ -1,10 +1,12 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, Integer, Index
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, String, DateTime, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+
 from ..db import Base
-from datetime import datetime, timezone
+
 
 class Organization(Base):
     __tablename__ = "organizations"
@@ -12,8 +14,13 @@ class Organization(Base):
     name = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
     
-    # District relationship (for future use)
-    district_id = Column(UUID(as_uuid=True), nullable=True)
+    # District relationship
+    district_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("districts.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
     
     # Address fields
     street_number = Column(String, nullable=True)
@@ -50,3 +57,4 @@ class Organization(Base):
     members = relationship("OrganizationMember", back_populates="organization")
     student_guardian_links = relationship("StudentGuardian", back_populates="organization")
     invitations = relationship("Invitation", back_populates="organization")
+    district = relationship("District", back_populates="organizations")

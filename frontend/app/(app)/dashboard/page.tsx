@@ -118,19 +118,24 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <Button 
-          onClick={handleLogout} 
+    <div className="space-y-6">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Overview</h1>
+          <p className="text-muted-foreground">
+            Monitor memberships, invitations, and guardian onboarding in one place.
+          </p>
+        </div>
+        <Button
+          onClick={handleLogout}
           disabled={isLoggingOut}
           variant="outline"
         >
           {isLoggingOut ? 'Logging out...' : 'Logout'}
         </Button>
       </div>
-      
-      <Card>
+
+      <Card className="border-muted shadow-sm">
         <CardHeader>
           <CardTitle>Dashboard</CardTitle>
           <CardDescription>Welcome, {data.user.email}</CardDescription>

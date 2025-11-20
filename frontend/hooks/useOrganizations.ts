@@ -8,7 +8,7 @@ const MEMBERSHIPS_ENDPOINT = '/api/v1/organizations/my-memberships'
 export interface Organization {
   id: string
   name: string
-  district_id: string | null
+  district_name: string | null
   street_number: string | null
   street_name: string | null
   city: string | null
@@ -40,7 +40,6 @@ export interface OrganizationMembership {
 export type OrganizationWithRole = Organization & { role?: string }
 
 interface OrganizationBasePayload {
-  district_id?: string
   street_number?: string
   street_name?: string
   city?: string

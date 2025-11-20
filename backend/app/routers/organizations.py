@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session, joinedload
 from .. import models, schemas, auth
 from ..db import get_db
 from ..models.organization_member import OrganizationMember, OrgRole, MemberStatus
@@ -18,8 +18,6 @@ SENSITIVE_FIELDS = {
     "sis_client_secret",
 }
 
-FOREIGN_KEY_FIELDS = {"district_id"}
-
 RESTRICTED_VIEW_ROLES = {OrgRole.staff, OrgRole.secretary}
 
 
@@ -34,11 +32,28 @@ def _sanitize_organization(
         organization, from_attributes=True
     ).model_dump()
 
+    # Extract district_name from the relationship
+    if organization.district:
+        schema_data["district_name"] = organization.district.name
+    else:
+        schema_data["district_name"] = None
+
     if hide_sensitive:
-        for field in SENSITIVE_FIELDS | FOREIGN_KEY_FIELDS:
+        for field in SENSITIVE_FIELDS:
             schema_data[field] = None
 
     return schemas.Organization(**schema_data)
+
+
+def _reject_district_assignment(payload: object) -> None:
+    """
+    Prevent create/update callers from attempting to mutate the district link.
+    """
+    if isinstance(payload, dict) and "district_id" in payload:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="district_id is managed by the platform and cannot be modified via this endpoint.",
+        )
 
 
 def _ensure_user_is_admin(db: Session, user: schemas.SupabaseUser) -> None:
@@ -173,6 +188,7 @@ async def get_my_default_organization(
 )
 async def create_organization(
     organization_in: schemas.OrganizationCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: schemas.SupabaseUser = Depends(auth.get_current_user),
 ):
@@ -181,12 +197,22 @@ async def create_organization(
     """
     _ensure_user_is_admin(db, user)
 
+    payload = await request.json()
+    _reject_district_assignment(payload)
+
     organization = models.Organization(**organization_in.model_dump())
     db.add(organization)
     db.commit()
-    db.refresh(organization)
+    
+    # Reload with district relationship
+    organization = (
+        db.query(models.Organization)
+        .options(joinedload(models.Organization.district))
+        .filter(models.Organization.id == organization.id)
+        .first()
+    )
 
-    return organization
+    return _sanitize_organization(organization, hide_sensitive=False)
 
 
 @router.get("/", response_model=List[schemas.Organization])
@@ -204,6 +230,7 @@ async def list_organizations(
             OrganizationMember,
             OrganizationMember.organization_id == models.Organization.id,
         )
+        .options(joinedload(models.Organization.district))
         .filter(
             OrganizationMember.user_id == user.id,
             OrganizationMember.status == MemberStatus.active,
@@ -230,7 +257,10 @@ async def get_organization(
     Retrieve a single organization. Staff/secretary roles receive sanitized data.
     """
     organization = (
-        db.query(models.Organization).filter(models.Organization.id == org_id).first()
+        db.query(models.Organization)
+        .options(joinedload(models.Organization.district))
+        .filter(models.Organization.id == org_id)
+        .first()
     )
 
     if not organization:
@@ -244,6 +274,7 @@ async def get_organization(
 async def update_organization(
     org_id: UUID4,
     organization_update: schemas.OrganizationUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     member: schemas.AuthenticatedMember = Depends(auth.require_admin_role),
 ):
@@ -251,11 +282,17 @@ async def update_organization(
     Update an existing organization. Admin role required, deletion not supported.
     """
     organization = (
-        db.query(models.Organization).filter(models.Organization.id == org_id).first()
+        db.query(models.Organization)
+        .options(joinedload(models.Organization.district))
+        .filter(models.Organization.id == org_id)
+        .first()
     )
 
     if not organization:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found.")
+
+    payload = await request.json()
+    _reject_district_assignment(payload)
 
     update_data = organization_update.model_dump(exclude_unset=True)
 
@@ -265,6 +302,14 @@ async def update_organization(
     db.add(organization)
     db.commit()
     db.refresh(organization)
+    
+    # Reload with district relationship
+    organization = (
+        db.query(models.Organization)
+        .options(joinedload(models.Organization.district))
+        .filter(models.Organization.id == org_id)
+        .first()
+    )
 
     hide_sensitive = member.role in RESTRICTED_VIEW_ROLES
     return _sanitize_organization(organization, hide_sensitive)

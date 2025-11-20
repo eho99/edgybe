@@ -1,6 +1,13 @@
 import pytest
 from sqlalchemy import inspect
-from app.models import Organization, Profile, OrganizationMember, OrgRole, MemberStatus
+from app.models import (
+    Organization,
+    District,
+    Profile,
+    OrganizationMember,
+    OrgRole,
+    MemberStatus,
+)
 
 def test_organization_model():
     inspector = inspect(Organization)
@@ -39,6 +46,33 @@ def test_organization_model():
     # Check relationships
     relationships = [r.key for r in inspector.relationships]
     assert 'members' in relationships
+    assert 'district' in relationships
+
+
+def test_organization_has_district_relationship(db_session):
+    district = District(name="District One")
+    db_session.add(district)
+    db_session.commit()
+
+    organization = Organization(name="Org With District", district_id=district.id)
+    db_session.add(organization)
+    db_session.commit()
+    db_session.refresh(organization)
+    db_session.refresh(district)
+
+    assert organization.district.id == district.id
+    assert organization in district.organizations
+
+
+def test_organization_district_fk_constraint():
+    inspector = inspect(Organization)
+    fk_list = list(inspector.columns['district_id'].foreign_keys)
+
+    assert fk_list, "district_id should have a foreign key constraint"
+    fk = fk_list[0]
+    assert fk.column.table.name == 'districts'
+    assert fk.target_fullname == 'districts.id'
+    assert fk.ondelete == 'RESTRICT'
 
 def test_profile_model():
     inspector = inspect(Profile)
