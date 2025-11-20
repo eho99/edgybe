@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..db import Base
+from datetime import datetime, timezone
 
 class OrgRole(enum.Enum):
     admin = "admin"
@@ -30,7 +31,7 @@ class OrganizationMember(Base):
     role = Column(Enum(OrgRole, create_type=False), nullable=False, default=OrgRole.staff)
     status = Column(Enum(MemberStatus), nullable=False, default=MemberStatus.active)
     
-    joined_at = Column(DateTime(timezone=True), server_default=func.now())
+    joined_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
 
     organization = relationship("Organization", back_populates="members")
     user_profile = relationship("Profile", back_populates="memberships")

@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..db import Base
+from datetime import datetime, timezone
 
 class GuardianRelationType(enum.Enum):
     primary = "primary"
@@ -21,7 +22,7 @@ class StudentGuardian(Base):
     guardian_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False)
     
     relationship_type = Column(Enum(GuardianRelationType), nullable=False, default=GuardianRelationType.primary)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
 
     # Relationships
     organization = relationship("Organization", back_populates="student_guardian_links")

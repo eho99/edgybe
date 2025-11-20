@@ -15,7 +15,7 @@ async def link_guardian_to_student(
     org_id: UUID4,
     link_request: schemas.GuardianLinkRequest,
     db: Session = Depends(get_db),
-    admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role) 
+    admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role)
 ):
     # The service returns the ORM object. 
     # FastAPI/Pydantic automatically converts it to GuardianLinkResponse
@@ -33,7 +33,7 @@ async def get_student_guardians(
     
     student_profile = db.query(models.Profile).filter(models.Profile.id == student_id).first()
     if not student_profile:
-         raise HTTPException(status_code=404, detail="Student not found")
+        raise HTTPException(status_code=404, detail="Student not found")
     links = services.StudentGuardianService(db).get_guardians_for_student(org_id, student_id)
     
     return {
@@ -49,7 +49,7 @@ async def get_guardian_students(
 ):
     guardian_profile = db.query(models.Profile).filter(models.Profile.id == guardian_id).first()
     if not guardian_profile:
-         raise HTTPException(status_code=404, detail="Guardian not found")
+        raise HTTPException(status_code=404, detail="Guardian not found")
     links = services.StudentGuardianService(db).get_students_for_guardian(org_id, guardian_id)
     
     return {

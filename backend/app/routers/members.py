@@ -47,6 +47,39 @@ async def invite_new_member(
             detail=f"Failed to invite user: {str(e)}"
         )
 
+@router.post(
+    "/invite/bulk",
+    response_model=schemas.BulkInviteResponse
+)
+async def bulk_invite_members(
+    org_id: UUID4,
+    request: schemas.BulkUserInviteRequest,
+    admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role),
+    invitation_service: InvitationService = Depends(get_invitation_service)
+):
+    """
+    Bulk invite or add multiple users to the organization.
+    Only Admins can perform this action.
+    
+    This endpoint is for inviting internal users (staff, secretary, admin).
+    For students and guardians, use the student/guardian creation endpoints.
+    """
+    try:
+        result = await invitation_service.bulk_invite_users(
+            org_id=org_id,
+            users=request.users,
+            inviter_id=admin_member.user.id
+        )
+        return result
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (they have the correct status code)
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process bulk invitations: {str(e)}"
+        )
+
 @router.get(
     "/",
     response_model=schemas.AccountListResponse

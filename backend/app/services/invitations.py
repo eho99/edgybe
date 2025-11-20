@@ -1,11 +1,12 @@
 from sqlalchemy.orm import Session
 from pydantic import EmailStr, UUID4
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from supabase_auth.errors import AuthApiError
 import logging
 from datetime import datetime, timedelta, timezone
 
-from .. import models, schemas
+from .. import models
+from .. import schemas
 from ..db import get_db
 # Import the admin client from existing auth file
 from ..auth import supabase  
@@ -105,6 +106,20 @@ class InvitationService:
             OrganizationMember with user_id=None (pending invitation)
         """
         logger.info(f"User {email} not found in Auth. Inviting...")
+        
+        # Check if there's already a membership with this invite_email
+        existing_member = self.db.query(models.OrganizationMember).filter(
+            models.OrganizationMember.organization_id == org_id,
+            models.OrganizationMember.invite_email == email
+        ).first()
+        
+        if existing_member:
+            logger.info(f"Membership with invite_email {email} already exists. Updating role if needed.")
+            if existing_member.role != role:
+                existing_member.role = role
+                self.db.commit()
+                self.db.refresh(existing_member)
+            return existing_member
         
         # Send invitation via Supabase
         invite_response = supabase.auth.admin.invite_user_by_email(
@@ -232,9 +247,17 @@ class InvitationService:
             
             return member
             
+        except HTTPException:
+            # Re-raise HTTPExceptions as-is
+            self.db.rollback()
+            raise
         except Exception as e:
             logger.error(f"Error in invitation process for {email}: {str(e)}")
-            raise Exception(f"Failed to process invitation for {email}: {str(e)}")
+            self.db.rollback()
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to process invitation for {email}: {str(e)}"
+            ) from e
 
     def _create_local_profile(
         self, user_id: UUID4, full_name: str | None, has_completed_profile: bool = False
@@ -408,6 +431,139 @@ class InvitationService:
         except Exception as e:
             logger.error(f"Error in resend_invitation for {invitation_id}: {str(e)}")
             return (False, f"Error resending invitation: {str(e)}")
+
+    async def bulk_invite_users(
+        self,
+        org_id: UUID4,
+        users: list[schemas.UserInviteRequest],
+        inviter_id: UUID4 | None = None
+    ) -> dict:
+        """
+        Bulk invite or add multiple users to an organization.
+        
+        Args:
+            org_id: Organization ID
+            users: List of UserInviteRequest objects
+            inviter_id: ID of the user sending invitations
+            
+        Returns:
+            Dict with 'successful', 'failed', 'total', 'succeeded', 'failed_count'
+        """
+        results = []
+        errors = []
+        
+        print(f"[bulk_invite_users] users: {users}")
+        
+        for idx, user_data in enumerate(users):
+            print(f"[bulk_invite_users] user_data: {user_data}")
+            try:
+                # Validate role is an internal role (not student/guardian)
+                # Handle both enum and string comparisons
+                role_value = user_data.role.value if hasattr(user_data.role, 'value') else str(user_data.role)
+                if role_value in ['student', 'guardian'] or user_data.role in [models.OrgRole.student, models.OrgRole.guardian]:
+                    errors.append({
+                        "index": idx,
+                        "email": user_data.email,
+                        "error": f"Role '{role_value}' is not allowed for bulk invitations. Use student/guardian creation endpoints instead."
+                    })
+                    continue
+                
+                # Ensure database session is in a clean state before each invitation
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass  # Ignore rollback errors if session is already clean
+                
+                member = await self.invite_or_add_user_to_org(
+                    org_id=org_id,
+                    email=user_data.email,
+                    role=user_data.role,
+                    full_name=user_data.full_name,
+                    inviter_id=inviter_id
+                )
+
+                print(f"[bulk_invite_users] member: {member}")
+                
+                # Convert member to dict for serialization
+                # Ensure all fields are properly serialized
+                try:
+                    # Safely get role value
+                    role_value = None
+                    if member.role:
+                        role_value = member.role.value if hasattr(member.role, 'value') else str(member.role)
+                    
+                    # Safely get status value
+                    status_value = None
+                    if member.status:
+                        status_value = member.status.value if hasattr(member.status, 'value') else str(member.status)
+
+                    print(f"[bulk_invite_users] role_value: {role_value}")
+                    print(f"[bulk_invite_users] status_value: {status_value}")
+                    
+                    member_dict = {
+                        "organization_id": str(member.organization_id),
+                        "user_id": str(member.user_id) if member.user_id else None,
+                        "invite_email": getattr(member, 'invite_email', None),
+                        "role": role_value,
+                        "status": status_value
+                    }
+
+                    print(f"[bulk_invite_users] member_dict: {member_dict}")
+                    
+                    results.append({
+                        "email": user_data.email,
+                        "member": member_dict,
+                        "status": "success"
+                    })
+                except Exception as serialization_error:
+                    # If serialization fails, add to errors instead
+                    logger.error(f"Failed to serialize member for {user_data.email}: {str(serialization_error)}")
+                    errors.append({
+                        "index": idx,
+                        "email": user_data.email,
+                        "error": f"Failed to serialize response: {str(serialization_error)}"
+                    })
+            except HTTPException as e:
+                # HTTPException has a detail attribute
+                error_msg = str(e.detail) if hasattr(e, 'detail') and e.detail else str(e)
+                errors.append({
+                    "index": idx,
+                    "email": user_data.email,
+                    "error": error_msg
+                })
+                logger.warning(f"Failed to invite user at index {idx} ({user_data.email}): {error_msg}")
+            except Exception as e:
+                error_msg = str(e)
+                # Clean up error message if it's too verbose
+                if "Failed to process invitation" in error_msg:
+                    # Extract the actual error from the wrapped exception
+                    error_msg = error_msg.split(": ", 1)[-1] if ": " in error_msg else error_msg
+                errors.append({
+                    "index": idx,
+                    "email": user_data.email,
+                    "error": error_msg
+                })
+                logger.warning(f"Failed to invite user at index {idx} ({user_data.email}): {error_msg}")
+        
+        print(f"[bulk_invite_users] errors: {errors}")
+        print(f"[bulk_invite_users] results: {results}")
+        if errors and not results:
+            # If all failed, raise an HTTPException
+            error_summary = "; ".join([f"{e.get('email', 'unknown')}: {e.get('error', 'unknown error')}" for e in errors[:5]])
+            if len(errors) > 5:
+                error_summary += f" ... and {len(errors) - 5} more"
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to invite any users. Errors: {error_summary}"
+            )
+        
+        return {
+            "successful": results,
+            "failed": errors,
+            "total": len(users),
+            "succeeded": len(results),
+            "failed_count": len(errors)
+        }
 
 # --- Add a dependency for this service ---
 def get_invitation_service(

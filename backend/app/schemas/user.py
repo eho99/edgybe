@@ -15,6 +15,16 @@ class UserInviteRequest(BaseModel):
     full_name: str | None = None
     role: OrgRole = OrgRole.staff
 
+class BulkUserInviteRequest(BaseModel):
+    users: list[UserInviteRequest]
+
+class BulkInviteResponse(BaseModel):
+    successful: list[dict]
+    failed: list[dict]
+    total: int
+    succeeded: int
+    failed_count: int
+
 class ProfileSchema(BaseModel):
     id: UUID4
     full_name: str | None
@@ -61,3 +71,11 @@ class ProfileUpdateSchema(BaseModel):
     grade_level: Optional[str] = None
     student_id: Optional[str] = None
     is_active: Optional[bool] = None
+    
+    @field_validator('phone', mode='before')
+    @classmethod
+    def handle_empty_phone(cls, v):
+        """Convert empty strings to None for phone field."""
+        if v == '' or v is None:
+            return None
+        return v

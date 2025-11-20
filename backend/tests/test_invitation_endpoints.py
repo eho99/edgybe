@@ -250,3 +250,110 @@ class TestInvitationEndpoints:
         
         assert response.status_code == 400
         assert "pending" in response.json()["detail"].lower()
+
+    def test_bulk_invite_members_success(self, client: TestClient, test_org):
+        """Test successful bulk invitation of multiple users"""
+        users_data = {
+            "users": [
+                {"email": "staff1@example.com", "role": "staff", "full_name": "Staff One"},
+                {"email": "staff2@example.com", "role": "staff", "full_name": "Staff Two"},
+                {"email": "secretary1@example.com", "role": "secretary", "full_name": "Secretary One"}
+            ]
+        }
+        
+        response = client.post(
+            f"/api/v1/organizations/{test_org.id}/members/invite/bulk",
+            json=users_data
+        )
+        
+        # Debug: print error if not 200
+        print(f"Response status code: {response.status_code}")
+        if response.status_code != 200:
+            print(f"Error body: {response.json()}")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 3
+        assert data["succeeded"] == 3
+        assert data["failed_count"] == 0
+        assert len(data["successful"]) == 3
+        assert len(data["failed"]) == 0
+        
+        # Verify all users were invited
+        for result in data["successful"]:
+            assert result["email"] in ["staff1@example.com", "staff2@example.com", "secretary1@example.com"]
+            assert result["status"] == "success"
+            assert "member" in result
+
+    def test_bulk_invite_members_with_errors(self, client: TestClient, test_org):
+        """Test bulk invitation with some invalid entries"""
+        users_data = {
+            "users": [
+                {"email": "valid@example.com", "role": "staff", "full_name": "Valid User"},
+                {"email": "student@example.com", "role": "student", "full_name": "Student User"},  # Invalid role
+                {"email": "guardian@example.com", "role": "guardian", "full_name": "Guardian User"},  # Invalid role
+            ]
+        }
+        
+        response = client.post(
+            f"/api/v1/organizations/{test_org.id}/members/invite/bulk",
+            json=users_data
+        )
+
+        print(f"[test_bulk_invite_members_with_errors] Response status code: {response.status_code}")
+        print(f"[test_bulk_invite_members_with_errors] Response body: {response.json()}")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 3
+        assert data["succeeded"] == 1
+        assert data["failed_count"] == 2
+        assert len(data["successful"]) == 1
+        assert len(data["failed"]) == 2
+        
+        # Verify the valid one succeeded
+        assert data["successful"][0]["email"] == "valid@example.com"
+        
+        # Verify the invalid ones failed
+        failed_emails = [f["email"] for f in data["failed"]]
+        assert "student@example.com" in failed_emails
+        assert "guardian@example.com" in failed_emails
+
+    def test_bulk_invite_members_duplicate_email(self, client: TestClient, test_org):
+        """Test bulk invitation with duplicate emails in the same request"""
+        users_data = {
+            "users": [
+                {"email": "duplicate@example.com", "role": "staff", "full_name": "User One"},
+                {"email": "duplicate@example.com", "role": "staff", "full_name": "User Two"},  # Duplicate
+            ]
+        }
+        
+        response = client.post(
+            f"/api/v1/organizations/{test_org.id}/members/invite/bulk",
+            json=users_data
+        )
+        
+        # Should succeed for first, may fail for second (depending on implementation)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 2
+        # At least one should succeed
+        assert data["succeeded"] >= 1
+
+    def test_bulk_invite_members_all_fail(self, client: TestClient, test_org):
+        """Test bulk invitation when all entries are invalid"""
+        users_data = {
+            "users": [
+                {"email": "student1@example.com", "role": "student"},
+                {"email": "student2@example.com", "role": "student"},
+            ]
+        }
+        
+        response = client.post(
+            f"/api/v1/organizations/{test_org.id}/members/invite/bulk",
+            json=users_data
+        )
+        
+        # Should return 400 error since all failed
+        assert response.status_code == 400
+        assert "Failed to invite any users" in response.json()["detail"]

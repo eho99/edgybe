@@ -4,6 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..db import Base
+from datetime import datetime, timezone
 
 class Profile(Base):
     __tablename__ = "profiles"
@@ -34,7 +35,7 @@ class Profile(Base):
     
     # Status and timestamps
     is_active = Column(Boolean, nullable=True, default=True)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     
     # A user can be a member of many organizations
     memberships = relationship("OrganizationMember", back_populates="user_profile")

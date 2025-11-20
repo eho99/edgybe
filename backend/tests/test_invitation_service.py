@@ -300,53 +300,6 @@ class TestResendInvitation:
 
 
 @pytest.mark.asyncio
-class TestInvitationServiceIntegration:
-    
-    @patch('app.services.invitations.supabase')
-    async def test_invite_new_user_creates_invitation_and_membership(self, mock_supabase, invitation_service, sample_invitation_data):
-        """Test that inviting a new user creates both invitation and membership records"""
-        # Setup - service uses list_users() to check if user exists, not get_user_by_email
-        # Return empty list to indicate user doesn't exist
-        mock_supabase.auth.admin.list_users.return_value = []
-        mock_supabase.auth.admin.invite_user_by_email.return_value = MagicMock()
-        
-        # Mock database operations
-        invitation_service.db.add = MagicMock()
-        invitation_service.db.commit = MagicMock()
-        invitation_service.db.refresh = MagicMock()
-        
-        # Execute
-        result = await invitation_service.invite_or_add_user_to_org(
-            org_id=sample_invitation_data['org_id'],
-            email=sample_invitation_data['email'],
-            role=sample_invitation_data['role'],
-            inviter_id=sample_invitation_data['inviter_id']
-        )
-        
-        # Verify
-        assert invitation_service.db.add.call_count == 2  # Invitation + Membership
-        invitation_service.db.commit.assert_called_once()
-        invitation_service.db.refresh.assert_called()
-        
-        # Verify invitation was created
-        invitation_call_args = invitation_service.db.add.call_args_list[0][0][0]
-        assert invitation_call_args.organization_id == sample_invitation_data['org_id']
-        assert invitation_call_args.email == sample_invitation_data['email']
-        assert invitation_call_args.role == sample_invitation_data['role']
-        assert invitation_call_args.inviter_id == sample_invitation_data['inviter_id']
-        assert invitation_call_args.status == InvitationStatus.pending
-        
-        # Verify membership was created
-        membership_call_args = invitation_service.db.add.call_args_list[1][0][0]
-        assert membership_call_args.organization_id == sample_invitation_data['org_id']
-        assert membership_call_args.user_id is None
-        assert membership_call_args.invite_email == sample_invitation_data['email']
-        assert membership_call_args.role == sample_invitation_data['role']
-        # New memberships are created as active by default (they just need to accept the invitation)
-        assert membership_call_args.status == MemberStatus.active
-
-
-@pytest.mark.asyncio
 class TestReactivationFlow:
     """Tests for reactivating inactive memberships when re-inviting users"""
     

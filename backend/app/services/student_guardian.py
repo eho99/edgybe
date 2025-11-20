@@ -13,10 +13,10 @@ class StudentGuardianService:
 
     def get_link_by_ids(self, org_id: UUID, student_id: UUID, guardian_id: UUID):
         return self.db.query(models.StudentGuardian).filter(
-            models.StudentGuardian.organization_id == org_id,
-            models.StudentGuardian.guardian_id == guardian_id,
-            models.StudentGuardian.student_id == student_id
-        ).first()
+        models.StudentGuardian.organization_id == org_id,
+        models.StudentGuardian.guardian_id == guardian_id,
+        models.StudentGuardian.student_id == student_id
+    ).first()
 
     def create_guardian_link(self, org_id: UUID, link_data: schemas.GuardianLinkRequest) -> models.StudentGuardian:
         # 1. Prevent self-guardianship

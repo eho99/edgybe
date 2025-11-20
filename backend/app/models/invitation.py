@@ -6,6 +6,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..db import Base
 from .organization_member import OrgRole
+from .utils import get_expiration_time
+from datetime import datetime, timezone
 
 class InvitationStatus(enum.Enum):
     pending = "pending"
@@ -30,13 +32,13 @@ class Invitation(Base):
     
     # Status and timing
     status = Column(Enum(InvitationStatus), nullable=False, default=InvitationStatus.pending)
-    sent_at = Column(DateTime(timezone=True), server_default=func.now())
+    sent_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
     accepted_at = Column(DateTime(timezone=True), nullable=True)
-    expires_at = Column(DateTime(timezone=True), server_default=func.now() + func.interval('7 days'))
+    expires_at = Column(DateTime(timezone=True), default=get_expiration_time)
     
     # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     
     # Relationships
     organization = relationship("Organization", back_populates="invitations")

@@ -4,12 +4,13 @@ from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..db import Base
+from datetime import datetime, timezone
 
 class Organization(Base):
     __tablename__ = "organizations"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
     
     # District relationship (for future use)
     district_id = Column(UUID(as_uuid=True), nullable=True)
@@ -44,7 +45,7 @@ class Organization(Base):
     
     # Additional fields
     disclaimers = Column(JSON, nullable=True)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     
     members = relationship("OrganizationMember", back_populates="organization")
     student_guardian_links = relationship("StudentGuardian", back_populates="organization")
