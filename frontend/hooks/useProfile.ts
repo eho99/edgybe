@@ -6,6 +6,18 @@ interface Profile {
     id: string;
     full_name: string | null;
     has_completed_profile: boolean;
+    phone: string | null;
+    street_number: string | null;
+    street_name: string | null;
+    city: string | null;
+    state: string | null;
+    zip_code: string | null;
+    country: string | null;
+    preferred_language: string | null;
+    grade_level: string | null;
+    student_id: string | null;
+    is_active: boolean;
+    updated_at: string;
 }
 
 export function useProfile() {

@@ -73,11 +73,60 @@ async def update_my_profile(
             full_name=profile_data.full_name,
             has_completed_profile=True
         )
+        # Set new fields if provided
+        if profile_data.phone is not None:
+            profile.phone = profile_data.phone
+        if profile_data.street_number is not None:
+            profile.street_number = profile_data.street_number
+        if profile_data.street_name is not None:
+            profile.street_name = profile_data.street_name
+        if profile_data.city is not None:
+            profile.city = profile_data.city
+        if profile_data.state is not None:
+            profile.state = profile_data.state
+        if profile_data.zip_code is not None:
+            profile.zip_code = profile_data.zip_code
+        if profile_data.country is not None:
+            profile.country = profile_data.country
+        if profile_data.preferred_language is not None:
+            profile.preferred_language = profile_data.preferred_language
+        if profile_data.grade_level is not None:
+            profile.grade_level = profile_data.grade_level
+        if profile_data.student_id is not None:
+            profile.student_id = profile_data.student_id
+        if profile_data.is_active is not None:
+            profile.is_active = profile_data.is_active
         db.add(profile)
     else:
-        # Update existing profile
-        profile.full_name = profile_data.full_name
-        profile.has_completed_profile = True # Mark as completed!
+        # Update existing profile - update only provided fields
+        if profile_data.full_name is not None:
+            profile.full_name = profile_data.full_name
+        if profile_data.phone is not None:
+            profile.phone = profile_data.phone
+        if profile_data.street_number is not None:
+            profile.street_number = profile_data.street_number
+        if profile_data.street_name is not None:
+            profile.street_name = profile_data.street_name
+        if profile_data.city is not None:
+            profile.city = profile_data.city
+        if profile_data.state is not None:
+            profile.state = profile_data.state
+        if profile_data.zip_code is not None:
+            profile.zip_code = profile_data.zip_code
+        if profile_data.country is not None:
+            profile.country = profile_data.country
+        if profile_data.preferred_language is not None:
+            profile.preferred_language = profile_data.preferred_language
+        if profile_data.grade_level is not None:
+            profile.grade_level = profile_data.grade_level
+        if profile_data.student_id is not None:
+            profile.student_id = profile_data.student_id
+        if profile_data.is_active is not None:
+            profile.is_active = profile_data.is_active
+        # Mark as completed if full_name is being set (for profile completion flow)
+        # Only set to True if full_name is provided, don't set to False if it's None
+        if profile_data.full_name is not None and profile_data.full_name.strip():
+            profile.has_completed_profile = True
     
     db.commit()
     db.refresh(profile)

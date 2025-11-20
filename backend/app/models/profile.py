@@ -1,7 +1,8 @@
 import uuid
-from sqlalchemy import Column, String, Boolean
+from sqlalchemy import Column, String, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from ..db import Base
 
 class Profile(Base):
@@ -12,6 +13,28 @@ class Profile(Base):
     id = Column(UUID(as_uuid=True), primary_key=True)
     full_name = Column(String)
     has_completed_profile = Column(Boolean, nullable=True, default=False)
+    
+    # Contact information
+    phone = Column(String, nullable=True)
+    
+    # Address fields
+    street_number = Column(String, nullable=True)
+    street_name = Column(String, nullable=True)
+    city = Column(String, nullable=True)
+    state = Column(String, nullable=True)
+    zip_code = Column(String, nullable=True)
+    country = Column(String, nullable=True)
+    
+    # User preferences
+    preferred_language = Column(String, nullable=True)
+    
+    # Student-specific fields
+    grade_level = Column(String, nullable=True)
+    student_id = Column(String, nullable=True, unique=True, index=True)
+    
+    # Status and timestamps
+    is_active = Column(Boolean, nullable=True, default=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # A user can be a member of many organizations
     memberships = relationship("OrganizationMember", back_populates="user_profile")

@@ -16,7 +16,11 @@ def setup_db(db_session, mock_user):
     mock_profile = Profile(
         id=mock_user.id,  # Use mock_user.id from fixture
         full_name="Initial Name", 
-        has_completed_profile=False
+        has_completed_profile=False,
+        phone="+14155552671",
+        city="Springfield",
+        state="IL",
+        is_active=True
     )
     db_session.add(mock_profile)
     db_session.commit()

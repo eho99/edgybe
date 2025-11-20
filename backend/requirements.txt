@@ -8,6 +8,7 @@ python-dotenv
 supabase
 supabase_auth
 pydantic[email]
+pydantic-extra-types
 python-jose[cryptography]
 pytest
 pytest-asyncio

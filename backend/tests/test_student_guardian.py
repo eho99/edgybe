@@ -19,7 +19,14 @@ def setup_test_data(db_session, mock_user):
     db_session.add(test_org)
     
     # Create profile for mock_user (admin) - required for foreign key constraint
-    admin_profile = Profile(id=mock_user.id, full_name="Admin User")
+    admin_profile = Profile(
+        id=mock_user.id, 
+        full_name="Admin User",
+        phone="+14155552671",
+        city="Springfield",
+        state="IL",
+        is_active=True
+    )
     db_session.add(admin_profile)
     
     # Create admin member
@@ -32,8 +39,24 @@ def setup_test_data(db_session, mock_user):
     db_session.add(admin_member)
     
     # Create guardian and student profiles
-    guardian_profile = Profile(id=mock_guardian_uuid, full_name="Guardian User")
-    student_profile = Profile(id=mock_student_uuid, full_name="Student User")
+    guardian_profile = Profile(
+        id=mock_guardian_uuid, 
+        full_name="Guardian User",
+        phone="+14155552672",
+        street_number="456",
+        street_name="Oak Ave",
+        city="Springfield",
+        state="IL",
+        zip_code="62702",
+        is_active=True
+    )
+    student_profile = Profile(
+        id=mock_student_uuid, 
+        full_name="Student User",
+        grade_level="9",
+        student_id="STU001",
+        is_active=True
+    )
     db_session.add_all([guardian_profile, student_profile])
     
     # Create guardian and student members
@@ -191,7 +214,14 @@ def test_link_guardian_not_in_org(client: TestClient, db_session):
     db_session.add(other_org)
     
     other_guardian_id = uuid.uuid4()
-    other_guardian_profile = Profile(id=other_guardian_id, full_name="Other Guardian")
+    other_guardian_profile = Profile(
+        id=other_guardian_id, 
+        full_name="Other Guardian",
+        phone="(555) 111-2222",
+        city="Chicago",
+        state="IL",
+        is_active=True
+    )
     db_session.add(other_guardian_profile)
     
     other_guardian_member = OrganizationMember(
@@ -222,7 +252,13 @@ def test_link_student_not_in_org(client: TestClient, db_session):
     db_session.add(other_org)
     
     other_student_id = uuid.uuid4()
-    other_student_profile = Profile(id=other_student_id, full_name="Other Student")
+    other_student_profile = Profile(
+        id=other_student_id, 
+        full_name="Other Student",
+        grade_level="10",
+        student_id="STU002",
+        is_active=True
+    )
     db_session.add(other_student_profile)
     
     other_student_member = OrganizationMember(
@@ -267,7 +303,13 @@ def test_link_guardian_with_wrong_role(client: TestClient, db_session):
     """
     # Create another student in the same org
     other_student_id = uuid.uuid4()
-    other_student_profile = Profile(id=other_student_id, full_name="Other Student")
+    other_student_profile = Profile(
+        id=other_student_id, 
+        full_name="Other Student",
+        grade_level="10",
+        student_id="STU002",
+        is_active=True
+    )
     db_session.add(other_student_profile)
     
     # Add them to org as a STUDENT
@@ -507,7 +549,13 @@ def test_duplicate_profile_prevention(client: TestClient, db_session):
     """Test that creating a profile with existing ID fails"""
     # Create a profile manually
     existing_id = uuid.uuid4()
-    existing_profile = Profile(id=existing_id, full_name="Existing")
+    existing_profile = Profile(
+        id=existing_id, 
+        full_name="Existing",
+        grade_level="11",
+        student_id="STU003",
+        is_active=True
+    )
     db_session.add(existing_profile)
     db_session.commit()
     

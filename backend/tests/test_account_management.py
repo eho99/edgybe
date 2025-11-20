@@ -25,7 +25,11 @@ def test_org(db_session, mock_user):
     admin_profile = Profile(
         id=mock_user.id,
         full_name="Admin User",
-        has_completed_profile=True
+        has_completed_profile=True,
+        phone="(555) 123-4567",
+        city="Springfield",
+        state="IL",
+        is_active=True
     )
     db_session.add(admin_profile)
     
@@ -41,7 +45,11 @@ def sample_member(db_session, test_org):
     profile = Profile(
         id=user_id,
         full_name="Test User",
-        has_completed_profile=True
+        has_completed_profile=True,
+        phone="(555) 234-5678",
+        city="Springfield",
+        state="IL",
+        is_active=True
     )
     db_session.add(profile)
     
@@ -66,7 +74,10 @@ def sample_inactive_member(db_session, test_org):
     profile = Profile(
         id=user_id,
         full_name="Inactive User",
-        has_completed_profile=True
+        has_completed_profile=True,
+        grade_level="8",
+        student_id="STU004",
+        is_active=False
     )
     db_session.add(profile)
     
@@ -175,7 +186,11 @@ class TestAccountManagementEndpoints:
             profile = Profile(
                 id=user_id,
                 full_name=f"User {i}",
-                has_completed_profile=True
+                has_completed_profile=True,
+                phone=f"(555) {100+i:03d}-{2000+i:04d}",
+                city="Springfield",
+                state="IL",
+                is_active=True
             )
             db_session.add(profile)
             
@@ -278,7 +293,11 @@ class TestAccountManagementEndpoints:
         admin_profile = Profile(
             id=mock_user.id,
             full_name="Admin User",
-            has_completed_profile=True
+            has_completed_profile=True,
+            phone="(555) 123-4567",
+            city="Springfield",
+            state="IL",
+            is_active=True
         )
         db_session.add(admin_profile)
         db_session.commit()

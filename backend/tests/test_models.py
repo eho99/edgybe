@@ -8,6 +8,33 @@ def test_organization_model():
     assert 'id' in columns
     assert 'name' in columns
     assert 'created_at' in columns
+    assert 'updated_at' in columns
+    
+    # Check new address fields
+    assert 'district_id' in columns
+    assert 'street_number' in columns
+    assert 'street_name' in columns
+    assert 'city' in columns
+    assert 'state' in columns
+    assert 'zip_code' in columns
+    
+    # Check contact fields
+    assert 'phone_number' in columns
+    assert 'office_extension' in columns
+    
+    # Check grade fields
+    assert 'lower_grade' in columns
+    assert 'upper_grade' in columns
+    
+    # Check other fields
+    assert 'slug' in columns
+    assert 'preset_config' in columns
+    assert 'form_config' in columns
+    assert 'aeries_school_code' in columns
+    assert 'sis_source_id' in columns
+    assert 'sis_client_id' in columns
+    assert 'sis_client_secret' in columns
+    assert 'disclaimers' in columns
     
     # Check relationships
     relationships = [r.key for r in inspector.relationships]
@@ -18,6 +45,29 @@ def test_profile_model():
     columns = [c.name for c in inspector.columns]
     assert 'id' in columns
     assert 'full_name' in columns
+    assert 'has_completed_profile' in columns
+    assert 'updated_at' in columns
+    
+    # Check contact fields
+    assert 'phone' in columns
+    
+    # Check address fields
+    assert 'street_number' in columns
+    assert 'street_name' in columns
+    assert 'city' in columns
+    assert 'state' in columns
+    assert 'zip_code' in columns
+    assert 'country' in columns
+    
+    # Check preference fields
+    assert 'preferred_language' in columns
+    
+    # Check student-specific fields
+    assert 'grade_level' in columns
+    assert 'student_id' in columns
+    
+    # Check status fields
+    assert 'is_active' in columns
     
     # Check relationships
     relationships = [r.key for r in inspector.relationships]

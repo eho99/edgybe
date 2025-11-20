@@ -25,7 +25,11 @@ def test_org(db_session, mock_user):
     inviter_profile = Profile(
         id=mock_user.id,
         full_name="Admin User",
-        has_completed_profile=True
+        has_completed_profile=True,
+        phone="(555) 123-4567",
+        city="Springfield",
+        state="IL",
+        is_active=True
     )
     db_session.add(inviter_profile)
     
