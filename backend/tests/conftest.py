@@ -43,10 +43,7 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 @pytest.fixture(scope="function")
 def db_session():
     """Create a fresh database session for each test with migrations applied."""
-    # Drop all tables first to ensure clean state
-    Base.metadata.drop_all(bind=engine)
-    
-    # Run migrations/create tables
+    # Run migrations/create tables (this will drop and recreate)
     upgrade_database(engine)
     
     session = TestingSessionLocal()
@@ -54,8 +51,8 @@ def db_session():
         yield session
     finally:
         session.close()
-        # Clean up after test
-        Base.metadata.drop_all(bind=engine)
+        # Clean up after test - drop all tables and data
+        Base.metadata.drop_all(bind=engine, checkfirst=True)
 
 # ============================================================================
 # Auth Mocking Fixtures

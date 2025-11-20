@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { InviteMemberForm } from "@/components/ui/InviteMemberForm"
 import { InvitationList } from "@/components/ui/InvitationList"
 import { AccountList } from "@/components/ui/AccountList"
+import { CreateStudentGuardianForm } from "@/components/ui/CreateStudentGuardianForm"
 
 interface AuthenticatedMember {
   user: {
@@ -47,7 +48,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([])
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'invitations' | 'accounts'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'invitations' | 'accounts' | 'students-guardians'>('overview')
   const router = useRouter()
   const supabase = createClient()
 
@@ -170,6 +171,16 @@ export default function DashboardPage() {
                   >
                     Accounts
                   </button>
+                  <button
+                    onClick={() => setActiveTab('students-guardians')}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      activeTab === 'students-guardians'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    Students & Guardians
+                  </button>
                 </>
               )}
             </nav>
@@ -238,6 +249,10 @@ export default function DashboardPage() {
 
           {activeTab === 'accounts' && data.role === 'admin' && (
             <AccountList orgId={data.org_id} />
+          )}
+
+          {activeTab === 'students-guardians' && data.role === 'admin' && (
+            <CreateStudentGuardianForm orgId={data.org_id} />
           )}
         </CardContent>
       </Card>
