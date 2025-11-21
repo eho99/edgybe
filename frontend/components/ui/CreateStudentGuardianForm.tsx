@@ -716,13 +716,30 @@ function BulkCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
           grade_level: '',
           student_id: '',
           email: '',
+          phone: '',
+          street_number: '',
+          street_name: '',
+          city: '',
+          state: '',
+          zip_code: '',
+          country: '',
+          preferred_language: '',
         },
         guardian: {
           full_name: '',
           email: '',
+          phone: '',
+          street_number: '',
+          street_name: '',
+          city: '',
+          state: '',
+          zip_code: '',
+          country: '',
+          preferred_language: '',
         },
         relationship_type: 'primary'
       }])
+      setExpandedPairs([true])
       onSuccess?.()
     } catch (err) {
       handleError(err, { title: "Failed to create student-guardian pairs" })
