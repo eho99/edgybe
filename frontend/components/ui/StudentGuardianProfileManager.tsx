@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -220,8 +220,8 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
               profiles.map((profile) => {
                 const isEditing = editingProfile?.id === profile.id
                 return (
-                  <>
-                    <TableRow key={profile.id}>
+                  <Fragment key={profile.id}>
+                    <TableRow key={`${profile.id}-row`}>
                       <TableCell className="font-medium">{profile.full_name ?? '—'}</TableCell>
                       {isStudentTab ? (
                         <TableCell>
@@ -245,7 +245,7 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
                       </TableCell>
                     </TableRow>
                     {isEditing && (
-                      <TableRow>
+                      <TableRow key={`${profile.id}-edit`}>
                         <TableCell colSpan={columns.length}>
                           <ProfileEditForm
                             isStudent={isStudentTab}
@@ -262,7 +262,7 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 )
               })
             )}

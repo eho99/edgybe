@@ -166,6 +166,67 @@ class TestAccountManagementEndpoints:
         # Should include inactive members by default
         inactive_accounts = [acc for acc in data["accounts"] if acc["status"] == "inactive"]
         assert len(inactive_accounts) >= 1
+
+    def test_list_accounts_excludes_student_and_guardian_roles(self, client: TestClient, test_org, sample_member, mock_supabase_client, db_session):
+        """Ensure student and guardian records are not returned in account listing"""
+        # Create guardian profile/member
+        guardian_user_id = uuid4()
+        guardian_profile = Profile(
+            id=guardian_user_id,
+            full_name="Guardian User",
+            has_completed_profile=True,
+            city="Springfield",
+            state="IL",
+            is_active=True
+        )
+        db_session.add(guardian_profile)
+        guardian_member = OrganizationMember(
+            id=uuid4(),
+            organization_id=test_org.id,
+            user_id=guardian_user_id,
+            role=OrgRole.guardian,
+            status=MemberStatus.active
+        )
+        db_session.add(guardian_member)
+
+        # Create student profile/member
+        student_user_id = uuid4()
+        student_profile = Profile(
+            id=student_user_id,
+            full_name="Student User",
+            grade_level="10",
+            student_id="STU999",
+            has_completed_profile=True,
+            city="Springfield",
+            state="IL",
+            is_active=True
+        )
+        db_session.add(student_profile)
+        student_member = OrganizationMember(
+            id=uuid4(),
+            organization_id=test_org.id,
+            user_id=student_user_id,
+            role=OrgRole.student,
+            status=MemberStatus.active
+        )
+        db_session.add(student_member)
+        db_session.commit()
+
+        # Mock Supabase for the staff member only
+        mock_user = type('obj', (object,), {
+            'id': sample_member.user_id,
+            'email': 'staff@example.com'
+        })()
+        mock_supabase_client.auth.admin.list_users.return_value = [mock_user]
+
+        response = client.get(f"/api/v1/organizations/{test_org.id}/members")
+
+        assert response.status_code == 200
+        data = response.json()
+        roles = {acc["role"] for acc in data["accounts"]}
+        assert "guardian" not in roles
+        assert "student" not in roles
+        assert "staff" in roles or "admin" in roles
     
     def test_list_accounts_invalid_status_filter(self, client: TestClient, test_org):
         """Test listing accounts with invalid status filter"""

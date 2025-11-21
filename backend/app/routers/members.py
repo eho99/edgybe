@@ -105,7 +105,8 @@ async def list_accounts(
             models.OrganizationMember.user_id == models.Profile.id,
             isouter=True  # Left join to include members without profiles
         ).filter(
-            models.OrganizationMember.organization_id == org_id
+            models.OrganizationMember.organization_id == org_id,
+            ~models.OrganizationMember.role.in_([models.OrgRole.student, models.OrgRole.guardian])
         )
         
         # Apply status filter
