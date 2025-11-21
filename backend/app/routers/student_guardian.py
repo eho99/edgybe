@@ -81,7 +81,17 @@ async def create_student(
     profile, member = service.create_student_profile(
         org_id=org_id,
         full_name=request.full_name,
-        email=request.email
+        grade_level=request.grade_level,
+        student_id=request.student_id,
+        email=request.email,
+        phone=request.phone,
+        street_number=request.street_number,
+        street_name=request.street_name,
+        city=request.city,
+        state=request.state,
+        zip_code=request.zip_code,
+        country=request.country,
+        preferred_language=request.preferred_language
     )
     return profile
 
@@ -97,7 +107,15 @@ async def create_guardian(
     profile, member = service.create_guardian_profile(
         org_id=org_id,
         full_name=request.full_name,
-        email=request.email
+        email=request.email,
+        phone=request.phone,
+        street_number=request.street_number,
+        street_name=request.street_name,
+        city=request.city,
+        state=request.state,
+        zip_code=request.zip_code,
+        country=request.country,
+        preferred_language=request.preferred_language
     )
     return profile
 

@@ -114,7 +114,17 @@ class StudentGuardianService:
         self,
         org_id: UUID,
         full_name: str,
+        grade_level: str,
+        student_id: str,
         email: str | None = None,
+        phone: str | None = None,
+        street_number: str | None = None,
+        street_name: str | None = None,
+        city: str | None = None,
+        state: str | None = None,
+        zip_code: str | None = None,
+        country: str | None = None,
+        preferred_language: str | None = None,
         profile_id: UUID | None = None
     ) -> tuple[models.Profile, models.OrganizationMember]:
         """
@@ -124,12 +134,34 @@ class StudentGuardianService:
         Args:
             org_id: Organization ID
             full_name: Student's full name
+            grade_level: Student's grade level (required)
+            student_id: Student's ID (required)
             email: Optional email (for contact info, not for login)
+            phone: Optional phone number
+            street_number: Optional street number
+            street_name: Optional street name
+            city: Optional city
+            state: Optional state
+            zip_code: Optional zip code
+            country: Optional country
+            preferred_language: Optional preferred language
             profile_id: Optional UUID (auto-generated if not provided)
             
         Returns:
             Tuple of (Profile, OrganizationMember)
         """
+        # Validate required fields
+        if not grade_level:
+            raise HTTPException(
+                status_code=400,
+                detail="grade_level is required for students"
+            )
+        if not student_id:
+            raise HTTPException(
+                status_code=400,
+                detail="student_id is required for students"
+            )
+        
         # Generate UUID if not provided
         if not profile_id:
             profile_id = uuid.uuid4()
@@ -145,10 +177,31 @@ class StudentGuardianService:
                 detail=f"Profile with ID {profile_id} already exists"
             )
         
-        # Create profile
+        # Check if student_id already exists (must be unique)
+        existing_student_id = self.db.query(models.Profile).filter(
+            models.Profile.student_id == student_id
+        ).first()
+        
+        if existing_student_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Student with student_id '{student_id}' already exists"
+            )
+        
+        # Create profile with all provided fields
         profile = models.Profile(
             id=profile_id,
             full_name=full_name,
+            grade_level=grade_level,
+            student_id=student_id,
+            phone=phone,
+            street_number=street_number,
+            street_name=street_name,
+            city=city,
+            state=state,
+            zip_code=zip_code,
+            country=country,
+            preferred_language=preferred_language,
             has_completed_profile=False  # Not applicable for non-auth profiles
         )
         self.db.add(profile)
@@ -184,7 +237,15 @@ class StudentGuardianService:
         self,
         org_id: UUID,
         full_name: str,
-        email: str | None = None,
+        email: str,
+        phone: str | None = None,
+        street_number: str | None = None,
+        street_name: str | None = None,
+        city: str | None = None,
+        state: str | None = None,
+        zip_code: str | None = None,
+        country: str | None = None,
+        preferred_language: str | None = None,
         profile_id: UUID | None = None
     ) -> tuple[models.Profile, models.OrganizationMember]:
         """
@@ -194,12 +255,27 @@ class StudentGuardianService:
         Args:
             org_id: Organization ID
             full_name: Guardian's full name
-            email: Optional email (for contact info, not for login)
+            email: Email address (required)
+            phone: Optional phone number
+            street_number: Optional street number
+            street_name: Optional street name
+            city: Optional city
+            state: Optional state
+            zip_code: Optional zip code
+            country: Optional country
+            preferred_language: Optional preferred language
             profile_id: Optional UUID (auto-generated if not provided)
             
         Returns:
             Tuple of (Profile, OrganizationMember)
         """
+        # Validate required fields
+        if not email:
+            raise HTTPException(
+                status_code=400,
+                detail="email is required for guardians"
+            )
+        
         if not profile_id:
             profile_id = uuid.uuid4()
         
@@ -214,9 +290,18 @@ class StudentGuardianService:
                 detail=f"Profile with ID {profile_id} already exists"
             )
         
+        # Create profile with all provided fields
         profile = models.Profile(
             id=profile_id,
             full_name=full_name,
+            phone=phone,
+            street_number=street_number,
+            street_name=street_name,
+            city=city,
+            state=state,
+            zip_code=zip_code,
+            country=country,
+            preferred_language=preferred_language,
             has_completed_profile=False
         )
         self.db.add(profile)
@@ -270,7 +355,17 @@ class StudentGuardianService:
                 profile, member = self.create_student_profile(
                     org_id=org_id,
                     full_name=student_data.full_name,
-                    email=student_data.email
+                    grade_level=student_data.grade_level,
+                    student_id=student_data.student_id,
+                    email=student_data.email,
+                    phone=student_data.phone,
+                    street_number=student_data.street_number,
+                    street_name=student_data.street_name,
+                    city=student_data.city,
+                    state=student_data.state,
+                    zip_code=student_data.zip_code,
+                    country=student_data.country,
+                    preferred_language=student_data.preferred_language
                 )
                 results.append((profile, member))
             except Exception as e:
@@ -304,7 +399,15 @@ class StudentGuardianService:
                 profile, member = self.create_guardian_profile(
                     org_id=org_id,
                     full_name=guardian_data.full_name,
-                    email=guardian_data.email
+                    email=guardian_data.email,
+                    phone=guardian_data.phone,
+                    street_number=guardian_data.street_number,
+                    street_name=guardian_data.street_name,
+                    city=guardian_data.city,
+                    state=guardian_data.state,
+                    zip_code=guardian_data.zip_code,
+                    country=guardian_data.country,
+                    preferred_language=guardian_data.preferred_language
                 )
                 results.append((profile, member))
             except Exception as e:
@@ -347,14 +450,32 @@ class StudentGuardianService:
                 student_profile, student_member = self.create_student_profile(
                     org_id=org_id,
                     full_name=pair_data.student.full_name,
-                    email=pair_data.student.email
+                    grade_level=pair_data.student.grade_level,
+                    student_id=pair_data.student.student_id,
+                    email=pair_data.student.email,
+                    phone=pair_data.student.phone,
+                    street_number=pair_data.student.street_number,
+                    street_name=pair_data.student.street_name,
+                    city=pair_data.student.city,
+                    state=pair_data.student.state,
+                    zip_code=pair_data.student.zip_code,
+                    country=pair_data.student.country,
+                    preferred_language=pair_data.student.preferred_language
                 )
                 
                 # Create guardian
                 guardian_profile, guardian_member = self.create_guardian_profile(
                     org_id=org_id,
                     full_name=pair_data.guardian.full_name,
-                    email=pair_data.guardian.email
+                    email=pair_data.guardian.email,
+                    phone=pair_data.guardian.phone,
+                    street_number=pair_data.guardian.street_number,
+                    street_name=pair_data.guardian.street_name,
+                    city=pair_data.guardian.city,
+                    state=pair_data.guardian.state,
+                    zip_code=pair_data.guardian.zip_code,
+                    country=pair_data.guardian.country,
+                    preferred_language=pair_data.guardian.preferred_language
                 )
                 
                 # Link them
