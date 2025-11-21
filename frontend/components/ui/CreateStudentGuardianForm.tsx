@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { useToast } from '@/hooks/useToast'
+import { Loader } from '@/components/ui/loader'
 import PhoneInput from 'react-phone-number-input'
-import 'react-phone-number-input/style.css'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 
 interface CreateStudentGuardianFormProps {
   orgId: string
@@ -136,9 +138,9 @@ function SingleCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
   })
   const [linkImmediately, setLinkImmediately] = useState(true)
   const [relationshipType, setRelationshipType] = useState('primary')
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { handleError } = useErrorHandler()
+  const { toast } = useToast()
 
   const updateStudentField = (field: keyof StudentFormData, value: string) => {
     setStudentData(prev => ({ ...prev, [field]: value }))
@@ -151,8 +153,6 @@ function SingleCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    setError(null)
-    setSuccess(null)
 
     try {
       // Prepare student payload
@@ -216,9 +216,17 @@ function SingleCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
             },
           }
         )
-        setSuccess(`Successfully created and linked student "${studentData.full_name}" with guardian "${guardianData.full_name}".`)
+        toast({
+          variant: "success",
+          title: "Student and guardian created",
+          description: `Successfully created and linked student "${studentData.full_name}" with guardian "${guardianData.full_name}".`,
+        })
       } else {
-        setSuccess(`Successfully created student "${studentData.full_name}" and guardian "${guardianData.full_name}".`)
+        toast({
+          variant: "success",
+          title: "Student and guardian created",
+          description: `Successfully created student "${studentData.full_name}" and guardian "${guardianData.full_name}".`,
+        })
       }
 
       // Reset form
@@ -250,8 +258,8 @@ function SingleCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
       })
       
       onSuccess?.()
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.')
+    } catch (err) {
+      handleError(err, { title: "Failed to create student and guardian" })
     } finally {
       setIsSubmitting(false)
     }
@@ -540,19 +548,6 @@ function SingleCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
       <Button type="submit" disabled={isSubmitting}>
         {isSubmitting ? 'Creating...' : 'Create Profiles'}
       </Button>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {success && (
-        <Alert variant="default">
-          <AlertTitle>Success</AlertTitle>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
     </form>
   )
 }
@@ -568,35 +563,73 @@ function BulkCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
       grade_level: '',
       student_id: '',
       email: '',
+      phone: '',
+      street_number: '',
+      street_name: '',
+      city: '',
+      state: '',
+      zip_code: '',
+      country: '',
+      preferred_language: '',
     },
     guardian: {
       full_name: '',
       email: '',
+      phone: '',
+      street_number: '',
+      street_name: '',
+      city: '',
+      state: '',
+      zip_code: '',
+      country: '',
+      preferred_language: '',
     },
     relationship_type: 'primary'
   }])
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [expandedPairs, setExpandedPairs] = useState<boolean[]>([true])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { handleError } = useErrorHandler()
+  const { toast } = useToast()
 
   const addPair = () => {
-    setPairs([...pairs, {
-      student: {
-        full_name: '',
-        grade_level: '',
-        student_id: '',
-        email: '',
+    setPairs(prev => [
+      ...prev,
+      {
+        student: {
+          full_name: '',
+          grade_level: '',
+          student_id: '',
+          email: '',
+          phone: '',
+          street_number: '',
+          street_name: '',
+          city: '',
+          state: '',
+          zip_code: '',
+          country: '',
+          preferred_language: '',
+        },
+        guardian: {
+          full_name: '',
+          email: '',
+          phone: '',
+          street_number: '',
+          street_name: '',
+          city: '',
+          state: '',
+          zip_code: '',
+          country: '',
+          preferred_language: '',
+        },
+        relationship_type: 'primary',
       },
-      guardian: {
-        full_name: '',
-        email: '',
-      },
-      relationship_type: 'primary'
-    }])
+    ])
+    setExpandedPairs((prev) => [...prev, true])
   }
 
   const removePair = (index: number) => {
     setPairs(pairs.filter((_, i) => i !== index))
+    setExpandedPairs(expandedPairs.filter((_, i) => i !== index))
   }
 
   const updatePair = (index: number, type: 'student' | 'guardian', field: string, value: string) => {
@@ -605,11 +638,15 @@ function BulkCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
     setPairs(newPairs)
   }
 
+  const togglePairVisibility = (index: number) => {
+    setExpandedPairs((prev) =>
+      prev.map((isOpen, i) => (i === index ? !isOpen : isOpen))
+    )
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    setError(null)
-    setSuccess(null)
 
     try {
       const pairsData = pairs
@@ -651,7 +688,11 @@ function BulkCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
         })
 
       if (pairsData.length === 0) {
-        setError('Please add at least one valid student-guardian pair with all required fields.')
+        toast({
+          variant: "destructive",
+          title: "Validation error",
+          description: "Please add at least one valid student-guardian pair with all required fields.",
+        })
         setIsSubmitting(false)
         return
       }
@@ -664,7 +705,11 @@ function BulkCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
         }
       ) as any
 
-      setSuccess(`Successfully created and linked ${response.created} student-guardian pair(s).`)
+      toast({
+        variant: "success",
+        title: "Bulk creation successful",
+        description: `Successfully created and linked ${response.created} student-guardian pair(s).`,
+      })
       setPairs([{
         student: {
           full_name: '',
@@ -679,8 +724,8 @@ function BulkCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
         relationship_type: 'primary'
       }])
       onSuccess?.()
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.')
+    } catch (err) {
+      handleError(err, { title: "Failed to create student-guardian pairs" })
     } finally {
       setIsSubmitting(false)
     }
@@ -689,100 +734,272 @@ function BulkCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-4 max-h-96 overflow-y-auto">
-        {pairs.map((pair, index) => (
-          <Card key={index}>
+        {pairs.map((pair, index) => {
+          const isExpanded = expandedPairs[index] ?? true
+          return (
+            <Card key={index}>
             <CardHeader className="pb-3">
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <CardTitle className="text-sm">Pair {index + 1}</CardTitle>
-                {pairs.length > 1 && (
+                <div className="flex items-center gap-2">
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
-                    onClick={() => removePair(index)}
+                    size="icon"
+                    onClick={() => togglePairVisibility(index)}
+                    aria-label={expandedPairs[index] ? "Collapse pair" : "Expand pair"}
                   >
-                    Remove
+                    {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
-                )}
+                  {pairs.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removePair(index)}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Student Name *</Label>
-                  <Input
-                    value={pair.student.full_name}
-                    onChange={(e) => updatePair(index, 'student', 'full_name', e.target.value)}
-                    placeholder="Student Name"
-                    required
-                  />
+            {isExpanded && (
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-muted-foreground">Student</h4>
+                    <span className="text-xs text-muted-foreground">Contact & details</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Full Name *</Label>
+                      <Input
+                        value={pair.student.full_name}
+                        onChange={(e) => updatePair(index, 'student', 'full_name', e.target.value)}
+                        placeholder="Student Name"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Grade Level *</Label>
+                      <Input
+                        value={pair.student.grade_level}
+                        onChange={(e) => updatePair(index, 'student', 'grade_level', e.target.value)}
+                        placeholder="9"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Student ID *</Label>
+                      <Input
+                        value={pair.student.student_id}
+                        onChange={(e) => updatePair(index, 'student', 'student_id', e.target.value)}
+                        placeholder="STU001"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={pair.student.email}
+                        onChange={(e) => updatePair(index, 'student', 'email', e.target.value)}
+                        placeholder="student@example.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Preferred Language</Label>
+                      <Input
+                        value={pair.student.preferred_language}
+                        onChange={(e) => updatePair(index, 'student', 'preferred_language', e.target.value)}
+                        placeholder="en"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
+                      <div className="[&_.PhoneInput]:flex [&_.PhoneInput]:items-center [&_.PhoneInput]:gap-2 [&_.PhoneInput]:w-full [&_.PhoneInputInput]:flex-1 [&_.PhoneInputInput]:h-10 [&_.PhoneInputInput]:w-full [&_.PhoneInputInput]:rounded-md [&_.PhoneInputInput]:border [&_.PhoneInputInput]:border-input [&_.PhoneInputInput]:bg-background [&_.PhoneInputInput]:px-3 [&_.PhoneInputInput]:py-2 [&_.PhoneInputInput]:text-sm [&_.PhoneInputInput]:ring-offset-background [&_.PhoneInputInput]:placeholder:text-muted-foreground [&_.PhoneInputInput]:focus-visible:outline-none [&_.PhoneInputInput]:focus-visible:ring-2 [&_.PhoneInputInput]:focus-visible:ring-ring [&_.PhoneInputInput]:focus-visible:ring-offset-2 [&_.PhoneInputCountry]:mr-2 [&_.PhoneInputCountryIcon]:w-6 [&_.PhoneInputCountryIcon]:h-6 [&_.PhoneInputCountryIcon]:rounded [&_.PhoneInputCountrySelect]:px-2 [&_.PhoneInputCountrySelect]:py-1 [&_.PhoneInputCountrySelect]:text-sm [&_.PhoneInputCountrySelect]:rounded-md [&_.PhoneInputCountrySelect]:border [&_.PhoneInputCountrySelect]:border-input [&_.PhoneInputCountrySelect]:bg-background">
+                        <PhoneInput
+                          international
+                          defaultCountry="US"
+                          value={pair.student.phone || undefined}
+                          onChange={(value) => updatePair(index, 'student', 'phone', value || '')}
+                          placeholder="Enter phone number"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Street Number</Label>
+                      <Input
+                        value={pair.student.street_number}
+                        onChange={(e) => updatePair(index, 'student', 'street_number', e.target.value)}
+                        placeholder="123"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Street Name</Label>
+                      <Input
+                        value={pair.student.street_name}
+                        onChange={(e) => updatePair(index, 'student', 'street_name', e.target.value)}
+                        placeholder="Main St"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>City</Label>
+                      <Input
+                        value={pair.student.city}
+                        onChange={(e) => updatePair(index, 'student', 'city', e.target.value)}
+                        placeholder="Springfield"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>State</Label>
+                      <Input
+                        value={pair.student.state}
+                        onChange={(e) => updatePair(index, 'student', 'state', e.target.value)}
+                        placeholder="IL"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>ZIP Code</Label>
+                      <Input
+                        value={pair.student.zip_code}
+                        onChange={(e) => updatePair(index, 'student', 'zip_code', e.target.value)}
+                        placeholder="62701"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Country</Label>
+                      <Input
+                        value={pair.student.country}
+                        onChange={(e) => updatePair(index, 'student', 'country', e.target.value)}
+                        placeholder="USA"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Student Grade Level *</Label>
-                  <Input
-                    value={pair.student.grade_level}
-                    onChange={(e) => updatePair(index, 'student', 'grade_level', e.target.value)}
-                    placeholder="9"
-                    required
-                  />
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-muted-foreground">Guardian</h4>
+                    <span className="text-xs text-muted-foreground">Contact & details</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Full Name *</Label>
+                      <Input
+                        value={pair.guardian.full_name}
+                        onChange={(e) => updatePair(index, 'guardian', 'full_name', e.target.value)}
+                        placeholder="Guardian Name"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email *</Label>
+                      <Input
+                        type="email"
+                        value={pair.guardian.email}
+                        onChange={(e) => updatePair(index, 'guardian', 'email', e.target.value)}
+                        placeholder="guardian@example.com"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Preferred Language</Label>
+                      <Input
+                        value={pair.guardian.preferred_language}
+                        onChange={(e) => updatePair(index, 'guardian', 'preferred_language', e.target.value)}
+                        placeholder="en"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
+                      <div className="[&_.PhoneInput]:flex [&_.PhoneInput]:items-center [&_.PhoneInput]:gap-2 [&_.PhoneInput]:w-full [&_.PhoneInputInput]:flex-1 [&_.PhoneInputInput]:h-10 [&_.PhoneInputInput]:w-full [&_.PhoneInputInput]:rounded-md [&_.PhoneInputInput]:border [&_.PhoneInputInput]:border-input [&_.PhoneInputInput]:bg-background [&_.PhoneInputInput]:px-3 [&_.PhoneInputInput]:py-2 [&_.PhoneInputInput]:text-sm [&_.PhoneInputInput]:ring-offset-background [&_.PhoneInputInput]:placeholder:text-muted-foreground [&_.PhoneInputInput]:focus-visible:outline-none [&_.PhoneInputInput]:focus-visible:ring-2 [&_.PhoneInputInput]:focus-visible:ring-ring [&_.PhoneInputInput]:focus-visible:ring-offset-2 [&_.PhoneInputCountry]:mr-2 [&_.PhoneInputCountryIcon]:w-6 [&_.PhoneInputCountryIcon]:h-6 [&_.PhoneInputCountryIcon]:rounded [&_.PhoneInputCountrySelect]:px-2 [&_.PhoneInputCountrySelect]:py-1 [&_.PhoneInputCountrySelect]:text-sm [&_.PhoneInputCountrySelect]:rounded-md [&_.PhoneInputCountrySelect]:border [&_.PhoneInputCountrySelect]:border-input [&_.PhoneInputCountrySelect]:bg-background">
+                        <PhoneInput
+                          international
+                          defaultCountry="US"
+                          value={pair.guardian.phone || undefined}
+                          onChange={(value) => updatePair(index, 'guardian', 'phone', value || '')}
+                          placeholder="Enter phone number"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Street Number</Label>
+                      <Input
+                        value={pair.guardian.street_number}
+                        onChange={(e) => updatePair(index, 'guardian', 'street_number', e.target.value)}
+                        placeholder="456"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Street Name</Label>
+                      <Input
+                        value={pair.guardian.street_name}
+                        onChange={(e) => updatePair(index, 'guardian', 'street_name', e.target.value)}
+                        placeholder="Oak Ave"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>City</Label>
+                      <Input
+                        value={pair.guardian.city}
+                        onChange={(e) => updatePair(index, 'guardian', 'city', e.target.value)}
+                        placeholder="Springfield"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>State</Label>
+                      <Input
+                        value={pair.guardian.state}
+                        onChange={(e) => updatePair(index, 'guardian', 'state', e.target.value)}
+                        placeholder="IL"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>ZIP Code</Label>
+                      <Input
+                        value={pair.guardian.zip_code}
+                        onChange={(e) => updatePair(index, 'guardian', 'zip_code', e.target.value)}
+                        placeholder="62702"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Country</Label>
+                      <Input
+                        value={pair.guardian.country}
+                        onChange={(e) => updatePair(index, 'guardian', 'country', e.target.value)}
+                        placeholder="USA"
+                      />
+                    </div>
+                  </div>
                 </div>
+
                 <div className="space-y-2">
-                  <Label>Student ID *</Label>
-                  <Input
-                    value={pair.student.student_id}
-                    onChange={(e) => updatePair(index, 'student', 'student_id', e.target.value)}
-                    placeholder="STU001"
-                    required
-                  />
+                  <Label>Relationship Type</Label>
+                  <select
+                    value={pair.relationship_type}
+                    onChange={(e) => {
+                      const newPairs = [...pairs]
+                      newPairs[index].relationship_type = e.target.value
+                      setPairs(newPairs)
+                    }}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="primary">Primary</option>
+                    <option value="secondary">Secondary</option>
+                    <option value="emergency">Emergency</option>
+                  </select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Student Email</Label>
-                  <Input
-                    type="email"
-                    value={pair.student.email}
-                    onChange={(e) => updatePair(index, 'student', 'email', e.target.value)}
-                    placeholder="student@example.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Guardian Name *</Label>
-                  <Input
-                    value={pair.guardian.full_name}
-                    onChange={(e) => updatePair(index, 'guardian', 'full_name', e.target.value)}
-                    placeholder="Guardian Name"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Guardian Email *</Label>
-                  <Input
-                    type="email"
-                    value={pair.guardian.email}
-                    onChange={(e) => updatePair(index, 'guardian', 'email', e.target.value)}
-                    placeholder="guardian@example.com"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Relationship Type</Label>
-                <select
-                  value={pair.relationship_type}
-                  onChange={(e) => {
-                    const newPairs = [...pairs]
-                    newPairs[index].relationship_type = e.target.value
-                    setPairs(newPairs)
-                  }}
-                  className="w-full p-2 border rounded"
-                >
-                  <option value="primary">Primary</option>
-                  <option value="secondary">Secondary</option>
-                  <option value="emergency">Emergency</option>
-                </select>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            )}
+            </Card>
+          )
+        })}
       </div>
 
       <Button type="button" variant="outline" onClick={addPair}>
@@ -792,28 +1009,15 @@ function BulkCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
       <Button type="submit" disabled={isSubmitting}>
         {isSubmitting ? 'Creating...' : `Create ${pairs.length} Pair(s)`}
       </Button>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {success && (
-        <Alert variant="default">
-          <AlertTitle>Success</AlertTitle>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
     </form>
   )
 }
 
 function CSVUploadForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () => void }) {
   const [file, setFile] = useState<File | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { handleError } = useErrorHandler()
+  const { toast } = useToast()
   const [preview, setPreview] = useState<any[]>([])
   const [parseErrors, setParseErrors] = useState<Array<{ row: number; error: string }>>([])
 
@@ -888,8 +1092,6 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
     if (!selectedFile) return
 
     setFile(selectedFile)
-    setError(null)
-    setSuccess(null)
     setParseErrors([])
 
     // Parse CSV and preview
@@ -900,7 +1102,11 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
         const lines = text.split('\n').filter(line => line.trim())
         
         if (lines.length < 2) {
-          setError('CSV must have at least a header row and one data row.')
+          toast({
+            variant: "destructive",
+            title: "Invalid CSV",
+            description: "CSV must have at least a header row and one data row.",
+          })
           return
         }
 
@@ -909,7 +1115,11 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
         const missingHeaders = requiredHeaders.filter(h => !headers.includes(h))
         
         if (missingHeaders.length > 0) {
-          setError(`Missing required columns: ${missingHeaders.join(', ')}`)
+          toast({
+            variant: "destructive",
+            title: "Missing columns",
+            description: `Missing required columns: ${missingHeaders.join(', ')}`,
+          })
           return
         }
 
@@ -940,7 +1150,7 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
           setParseErrors(errors)
         }
       } catch (err) {
-        setError(`Error parsing CSV: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        handleError(err, { title: "Error parsing CSV" })
       }
     }
     reader.readAsText(selectedFile)
@@ -949,13 +1159,15 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!file) {
-      setError('Please select a CSV file.')
+      toast({
+        variant: "destructive",
+        title: "No file selected",
+        description: "Please select a CSV file.",
+      })
       return
     }
 
     setIsSubmitting(true)
-    setError(null)
-    setSuccess(null)
     setParseErrors([])
 
     try {
@@ -1077,7 +1289,11 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
       })
 
       if (pairs.length === 0) {
-        setError('No valid pairs found in CSV file. Please check the format and required fields.')
+        toast({
+          variant: "destructive",
+          title: "No valid pairs",
+          description: "No valid pairs found in CSV file. Please check the format and required fields.",
+        })
         setParseErrors(errors)
         setIsSubmitting(false)
         return
@@ -1100,15 +1316,19 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
         successMessage += ` ${pairs.length - response.created} pair(s) failed to create (check backend logs for details).`
       }
 
-      setSuccess(successMessage)
+      toast({
+        variant: "success",
+        title: "CSV upload successful",
+        description: successMessage,
+      })
       if (errors.length > 0) {
         setParseErrors(errors)
       }
       setFile(null)
       setPreview([])
       onSuccess?.()
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.')
+    } catch (err) {
+      handleError(err, { title: "Failed to create student-guardian pairs" })
     } finally {
       setIsSubmitting(false)
     }
@@ -1218,19 +1438,6 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
       <Button type="submit" disabled={isSubmitting || !file}>
         {isSubmitting ? 'Processing...' : 'Upload and Create'}
       </Button>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {success && (
-        <Alert variant="default">
-          <AlertTitle>Success</AlertTitle>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
     </form>
   )
 }

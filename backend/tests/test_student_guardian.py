@@ -721,3 +721,42 @@ def test_duplicate_student_id_prevention(client: TestClient, db_session):
     response2 = client.post(url, json=student_data)
     assert response2.status_code == 400
     assert "student_id" in response2.json()["detail"].lower()
+
+
+def test_list_students_endpoint(client: TestClient):
+    url = f"/api/v1/organizations/{mock_org_uuid}/students"
+    response = client.get(url)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    assert len(data["profiles"]) >= 1
+
+
+def test_update_student_profile(client: TestClient, db_session):
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}"
+    payload = {
+        "full_name": "Updated Student",
+        "phone": "+14155550000",
+        "city": "Updated City"
+    }
+    response = client.patch(url, json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["full_name"] == "Updated Student"
+    assert data["phone"] == "tel:+1-415-555-0000"
+    assert data["city"] == "Updated City"
+
+
+def test_update_guardian_profile(client: TestClient, db_session):
+    url = f"/api/v1/organizations/{mock_org_uuid}/guardians/{mock_guardian_uuid}"
+    payload = {
+        "full_name": "Updated Guardian",
+        "phone": "+14155550001",
+        "country": "USA"
+    }
+    response = client.patch(url, json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["full_name"] == "Updated Guardian"
+    assert data["phone"] == "tel:+1-415-555-0001"
+    assert data["country"] == "USA"

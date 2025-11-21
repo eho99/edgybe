@@ -135,3 +135,10 @@ class BulkCreateResponse(BaseModel):
 class BulkCreatePairsResponse(BaseModel):
     created: int
     pairs: list[dict]  # Each dict has student_profile, guardian_profile, link
+
+class ProfileListResponse(BaseModel):
+    profiles: list[ProfileSchema]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int

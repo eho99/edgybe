@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { useToast } from '@/hooks/useToast'
+import { Loader } from '@/components/ui/loader'
 
 interface InviteMemberFormProps {
   orgId: string
@@ -81,30 +83,32 @@ function SingleInviteForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [role, setRole] = useState('staff')
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { handleError } = useErrorHandler()
+  const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    setError(null)
-    setSuccess(null)
 
     try {
-      const response = await apiClient(
+      await apiClient(
         `/api/v1/organizations/${orgId}/members/invite`,
         {
           method: 'POST',
           body: { email, role, full_name: fullName || undefined } as any,
         }
       )
-      setSuccess(`Successfully invited ${email} as a ${role}.`)
+      toast({
+        variant: "success",
+        title: "Invitation sent",
+        description: `Successfully invited ${email} as a ${role}.`,
+      })
       setEmail('')
       setFullName('')
       onSuccess?.()
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.')
+    } catch (err) {
+      handleError(err, { title: "Failed to send invitation" })
     } finally {
       setIsSubmitting(false)
     }
@@ -147,29 +151,24 @@ function SingleInviteForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
         </select>
       </div>
       <Button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Sending Invite...' : 'Send Invite'}
+        {isSubmitting ? (
+          <>
+            <Loader size="sm" className="mr-2" />
+            Sending Invite...
+          </>
+        ) : (
+          'Send Invite'
+        )}
       </Button>
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {success && (
-        <Alert variant="default">
-          <AlertTitle>Success</AlertTitle>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
     </form>
   )
 }
 
 function BulkInviteForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () => void }) {
   const [users, setUsers] = useState([{ email: '', full_name: '', role: 'staff' }])
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { handleError } = useErrorHandler()
+  const { toast } = useToast()
 
   const addUser = () => {
     setUsers([...users, { email: '', full_name: '', role: 'staff' }])
@@ -188,8 +187,6 @@ function BulkInviteForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    setError(null)
-    setSuccess(null)
 
     try {
       const usersData = users
@@ -201,7 +198,11 @@ function BulkInviteForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
         }))
 
       if (usersData.length === 0) {
-        setError('Please add at least one user with an email address.')
+        toast({
+          variant: "destructive",
+          title: "Validation error",
+          description: "Please add at least one user with an email address.",
+        })
         setIsSubmitting(false)
         return
       }
@@ -216,11 +217,15 @@ function BulkInviteForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
 
       const successMsg = `Successfully invited ${response.succeeded} user(s).`
       const failedMsg = response.failed_count > 0 ? ` ${response.failed_count} invitation(s) failed.` : ''
-      setSuccess(successMsg + failedMsg)
+      toast({
+        variant: response.failed_count > 0 ? "warning" : "success",
+        title: "Bulk invitations sent",
+        description: successMsg + failedMsg,
+      })
       setUsers([{ email: '', full_name: '', role: 'staff' }])
       onSuccess?.()
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.')
+    } catch (err) {
+      handleError(err, { title: "Failed to send bulk invitations" })
     } finally {
       setIsSubmitting(false)
     }
@@ -290,31 +295,26 @@ function BulkInviteForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
       </Button>
 
       <Button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Sending Invites...' : `Invite ${users.length} User(s)`}
+        {isSubmitting ? (
+          <>
+            <Loader size="sm" className="mr-2" />
+            Sending Invites...
+          </>
+        ) : (
+          `Invite ${users.length} User(s)`
+        )}
       </Button>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {success && (
-        <Alert variant="default">
-          <AlertTitle>Success</AlertTitle>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
     </form>
   )
 }
 
 function CSVInviteForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () => void }) {
   const [file, setFile] = useState<File | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [preview, setPreview] = useState<any[]>([])
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const { handleError } = useErrorHandler()
+  const { toast } = useToast()
 
   const downloadSampleCSV = () => {
     const csvContent = `email,full_name,role
@@ -339,8 +339,7 @@ admin1@example.com,Alice Williams,admin`
     if (!selectedFile) return
 
     setFile(selectedFile)
-    setError(null)
-    setSuccess(null)
+    setValidationError(null)
 
     const reader = new FileReader()
     reader.onload = (event) => {
@@ -348,7 +347,7 @@ admin1@example.com,Alice Williams,admin`
       const lines = text.split('\n').filter(line => line.trim())
       
       if (lines.length < 2) {
-        setError('CSV must have at least a header row and one data row.')
+        setValidationError('CSV must have at least a header row and one data row.')
         return
       }
 
@@ -357,9 +356,11 @@ admin1@example.com,Alice Williams,admin`
       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h))
       
       if (missingHeaders.length > 0) {
-        setError(`Missing required columns: ${missingHeaders.join(', ')}`)
+        setValidationError(`Missing required columns: ${missingHeaders.join(', ')}`)
         return
       }
+      
+      setValidationError(null)
 
       const previewData = lines.slice(1, 6).map(line => {
         const values = line.split(',').map(v => v.trim())
@@ -378,13 +379,24 @@ admin1@example.com,Alice Williams,admin`
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!file) {
-      setError('Please select a CSV file.')
+      toast({
+        variant: "destructive",
+        title: "No file selected",
+        description: "Please select a CSV file.",
+      })
+      return
+    }
+
+    if (validationError) {
+      toast({
+        variant: "destructive",
+        title: "Invalid CSV file",
+        description: validationError,
+      })
       return
     }
 
     setIsSubmitting(true)
-    setError(null)
-    setSuccess(null)
 
     try {
       const text = await file.text()
@@ -406,7 +418,11 @@ admin1@example.com,Alice Williams,admin`
       }).filter(u => u.email)
 
       if (users.length === 0) {
-        setError('No valid users found in CSV file.')
+        toast({
+          variant: "destructive",
+          title: "No valid users",
+          description: "No valid users found in CSV file.",
+        })
         setIsSubmitting(false)
         return
       }
@@ -421,12 +437,16 @@ admin1@example.com,Alice Williams,admin`
 
       const successMsg = `Successfully invited ${response.succeeded} user(s) from CSV.`
       const failedMsg = response.failed_count > 0 ? ` ${response.failed_count} invitation(s) failed.` : ''
-      setSuccess(successMsg + failedMsg)
+      toast({
+        variant: response.failed_count > 0 ? "warning" : "success",
+        title: "CSV invitations processed",
+        description: successMsg + failedMsg,
+      })
       setFile(null)
       setPreview([])
       onSuccess?.()
-    } catch (err: any) {
-      setError(err.message || 'An unknown error occurred.')
+    } catch (err) {
+      handleError(err, { title: "Failed to process CSV invitations" })
     } finally {
       setIsSubmitting(false)
     }
@@ -507,22 +527,22 @@ admin1@example.com,Bob Johnson,admin`}
         </div>
       )}
 
-      <Button type="submit" disabled={isSubmitting || !file}>
-        {isSubmitting ? 'Processing...' : 'Upload and Invite'}
-      </Button>
+      {validationError && (
+        <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+          {validationError}
+        </div>
+      )}
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      {success && (
-        <Alert variant="default">
-          <AlertTitle>Success</AlertTitle>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
+      <Button type="submit" disabled={isSubmitting || !file || !!validationError}>
+        {isSubmitting ? (
+          <>
+            <Loader size="sm" className="mr-2" />
+            Processing...
+          </>
+        ) : (
+          'Upload and Invite'
+        )}
+      </Button>
     </form>
   )
 }
