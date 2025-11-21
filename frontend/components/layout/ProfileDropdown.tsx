@@ -17,6 +17,7 @@ import { useProfile } from "@/hooks/useProfile"
 import { useErrorHandler } from "@/hooks/useErrorHandler"
 import { useToast } from "@/hooks/useToast"
 import { Loader } from "@/components/ui/loader"
+import { useCurrentUserRole } from "@/hooks/useCurrentUserRole"
 
 interface ProfileDropdownProps {
   className?: string
@@ -26,6 +27,7 @@ export function ProfileDropdown({ className }: ProfileDropdownProps) {
   const router = useRouter()
   const supabase = createClient()
   const { profile, isLoading } = useProfile()
+  const { role } = useCurrentUserRole()
   const { handleError } = useErrorHandler()
   const { toast } = useToast()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -62,17 +64,22 @@ export function ProfileDropdown({ className }: ProfileDropdownProps) {
     ? profile.id.slice(0, 2).toUpperCase()
     : "U"
 
-  const displayName = profile?.full_name || profile?.id || "User"
+  const displayName = profile?.full_name || "Team member"
+  const roleLabel = role ? role.replace(/_/g, " ") : "Member"
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className={`relative h-8 w-8 rounded-full ${className}`}
+          className={`flex items-center gap-3 rounded-full border border-border/60 px-2 py-1.5 hover:border-border ${className}`}
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/70 text-base font-semibold text-primary-foreground">
             {userInitials}
+          </div>
+          <div className="hidden text-left leading-tight sm:flex sm:flex-col">
+            <span className="text-sm font-semibold text-foreground">{displayName}</span>
+            <span className="text-xs text-muted-foreground capitalize">{roleLabel}</span>
           </div>
         </Button>
       </DropdownMenuTrigger>
@@ -80,11 +87,9 @@ export function ProfileDropdown({ className }: ProfileDropdownProps) {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{displayName}</p>
-            {profile?.id && (
-              <p className="text-xs leading-none text-muted-foreground">
-                {profile.id.slice(0, 8)}...
-              </p>
-            )}
+            <p className="text-xs leading-none text-muted-foreground capitalize">
+              {roleLabel}
+            </p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

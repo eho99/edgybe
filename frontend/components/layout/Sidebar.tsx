@@ -1,163 +1,114 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
+import {
+  Sidebar as SidebarShell,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+} from "@/components/ui/sidebar"
 import {
   LayoutDashboard,
   Users,
   UserPlus,
   FileText,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-  Bug,
   Building2,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { NavSection } from "./NavSection"
 import { useCurrentUserRole } from "@/hooks/useCurrentUserRole"
+import { cn } from "@/lib/utils"
 
-const SIDEBAR_COLLAPSED_KEY = "sidebar-collapsed"
+interface NavItem {
+  label: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+}
 
-export function Sidebar() {
+const mainNavItems: NavItem[] = [
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+]
+
+const referralNavItems: NavItem[] = [
+  { label: "Overview", href: "/dashboard/referrals", icon: FileText },
+]
+
+const adminNavItems: NavItem[] = [
+  { label: "Invitations", href: "/dashboard/admin/invitations", icon: UserPlus },
+  { label: "Accounts", href: "/dashboard/admin/accounts", icon: Users },
+  { label: "Students & Guardians", href: "/dashboard/admin/students-guardians", icon: FileText },
+]
+
+const devNavItems: NavItem[] = [
+  { label: "Organizations", href: "/dashboard/organizations", icon: Building2 },
+]
+
+function NavSection({ title, items }: { title?: string; items: NavItem[] }) {
   const pathname = usePathname()
-  const { isAdmin, isLoading: roleLoading } = useCurrentUserRole()
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  return (
+    <SidebarGroup>
+      {title && <SidebarGroupLabel>{title}</SidebarGroupLabel>}
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => {
+            const Icon = item.icon
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href))
+            return (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
+                  <Link href={item.href} className="flex items-center gap-2">
+                    <Icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  )
+}
 
-  useEffect(() => {
-    const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
-    if (saved !== null) {
-      setIsCollapsed(JSON.parse(saved))
-    }
-  }, [])
-
-  const toggleCollapse = () => {
-    const newState = !isCollapsed
-    setIsCollapsed(newState)
-    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, JSON.stringify(newState))
-  }
-
-  const mainNavItems = [
-    {
-      label: "Dashboard",
-      href: "/dashboard",
-      icon: LayoutDashboard,
-    },
-  ]
-
-  const referralsNavItems = [
-    {
-      label: "Overview",
-      href: "/dashboard/referrals",
-      icon: FileText,
-    },
-  ]
-
-  const adminNavItems = [
-    {
-      label: "Invitations",
-      href: "/dashboard/admin/invitations",
-      icon: UserPlus,
-    },
-    {
-      label: "Accounts",
-      href: "/dashboard/admin/accounts",
-      icon: Users,
-    },
-    {
-      label: "Students & Guardians",
-      href: "/dashboard/admin/students-guardians",
-      icon: FileText,
-    },
-  ]
-
-  const devNavItems = [
-    {
-      label: "Organizations",
-      href: "/dashboard/organizations",
-      icon: Building2,
-    },
-  ]
+export function AppSidebar() {
+  const { isAdmin } = useCurrentUserRole()
 
   return (
-    <aside
-      className={cn(
-        "relative flex h-screen flex-col border-r bg-background transition-all duration-300",
-        isCollapsed ? "w-16" : "w-64"
-      )}
-    >
-      {/* Logo/Brand */}
-      <div className="flex h-16 items-center border-b px-4">
-        {!isCollapsed && (
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+    <>
+      <SidebarShell collapsible="icon" className="border-border/60">
+        <SidebarHeader className="border-b border-border/60">
+          <Link href="/dashboard" className="flex items-center gap-3 px-2 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
               <LayoutDashboard className="h-4 w-4" />
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold">EdgyBe</span>
-              <span className="text-xs text-muted-foreground">Console</span>
+            <div className="flex flex-col text-sm font-semibold">
+              <span>EdgyBe</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                District Console
+              </span>
             </div>
           </Link>
-        )}
-        {isCollapsed && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground mx-auto">
-            <LayoutDashboard className="h-4 w-4" />
-          </div>
-        )}
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 space-y-4 overflow-y-auto p-4">
-        <NavSection items={mainNavItems} />
-
-        <NavSection
-          title="Referrals"
-          items={referralsNavItems}
-          collapsible={true}
-          defaultOpen={true}
-        />
-
-        {!roleLoading && isAdmin && (
-          <NavSection
-            title="Admin"
-            items={adminNavItems}
-            collapsible={true}
-            defaultOpen={true}
-          />
-        )}
-
-        <NavSection
-          title="Dev Tools"
-          items={devNavItems}
-          collapsible={true}
-          defaultOpen={false}
-        />
-      </nav>
-
-      {/* Footer */}
-      <div className="border-t p-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleCollapse}
-          className="w-full"
-          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
-        </Button>
-        {!isCollapsed && (
-          <p className="mt-2 text-xs text-center text-muted-foreground">
-            &copy; {new Date().getFullYear()} EdgyBe
-          </p>
-        )}
-      </div>
-    </aside>
+        </SidebarHeader>
+        <SidebarContent>
+          <NavSection items={mainNavItems} />
+          <NavSection title="Referrals" items={referralNavItems} />
+          {isAdmin && <NavSection title="Admin" items={adminNavItems} />}
+          <NavSection title="Dev Tools" items={devNavItems} />
+        </SidebarContent>
+        <SidebarFooter className="border-t border-border/60 text-xs text-muted-foreground">
+          &copy; {new Date().getFullYear()} EdgyBe
+        </SidebarFooter>
+      </SidebarShell>
+      <SidebarRail />
+    </>
   )
 }
 
