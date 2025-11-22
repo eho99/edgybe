@@ -311,7 +311,7 @@ class TestReferralCreate:
         data = response.json()
         assert data["student_id"] == str(test_student_profile.id)
         assert data["type"] == "Behavior"
-        assert data["status"] == "DRAFT"
+        assert data["status"] == "SUBMITTED"
         assert data["location"] == "Classroom"
         assert data["behaviors"] == ["Disruption", "Tardy"]
         assert data["student_name"] == "John Doe"

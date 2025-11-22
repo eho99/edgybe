@@ -129,6 +129,162 @@ def test_get_student_guardians(client: TestClient, db_session):
     assert guardian_entry["relationship_type"] == "primary"
 
 
+def test_get_student_guardians_with_email_via_relationship(client: TestClient, db_session):
+    """Test that guardian emails are correctly retrieved via the relationship-based approach"""
+    # Update guardian member to have an email
+    guardian_member = db_session.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == mock_org_uuid,
+        OrganizationMember.user_id == mock_guardian_uuid
+    ).first()
+    guardian_member.invite_email = "guardian@example.com"
+    db_session.commit()
+    
+    # Create a link
+    link = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=mock_guardian_uuid,
+        student_id=mock_student_uuid,
+        relationship_type=GuardianRelationType.primary
+    )
+    db_session.add(link)
+    db_session.commit()
+
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["student"]["id"] == str(mock_student_uuid)
+    assert len(data["guardians"]) == 1
+    
+    guardian_entry = data["guardians"][0]
+    # Verify email is retrieved via relationship
+    assert guardian_entry["guardian_email"] == "guardian@example.com"
+    assert guardian_entry["guardian_id"] == str(mock_guardian_uuid)
+    assert guardian_entry["guardian"]["id"] == str(mock_guardian_uuid)
+    assert guardian_entry["guardian"]["full_name"] == "Guardian User"
+
+
+def test_get_student_guardians_multiple_guardians_with_emails(client: TestClient, db_session):
+    """Test getting multiple guardians with different email scenarios"""
+    # Create a second guardian
+    second_guardian_id = uuid.uuid4()
+    second_guardian_profile = Profile(
+        id=second_guardian_id,
+        full_name="Second Guardian",
+        phone="+14155552673",
+        city="Springfield",
+        state="IL",
+        is_active=True
+    )
+    db_session.add(second_guardian_profile)
+    
+    second_guardian_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=second_guardian_id,
+        role=OrgRole.guardian,
+        status=MemberStatus.active,
+        invite_email="second.guardian@example.com"  # Has email
+    )
+    db_session.add(second_guardian_member)
+    
+    # Update first guardian to have email
+    first_guardian_member = db_session.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == mock_org_uuid,
+        OrganizationMember.user_id == mock_guardian_uuid
+    ).first()
+    first_guardian_member.invite_email = "first.guardian@example.com"
+    
+    # Create links for both guardians
+    link1 = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=mock_guardian_uuid,
+        student_id=mock_student_uuid,
+        relationship_type=GuardianRelationType.primary
+    )
+    link2 = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=second_guardian_id,
+        student_id=mock_student_uuid,
+        relationship_type=GuardianRelationType.secondary
+    )
+    db_session.add_all([link1, link2])
+    db_session.commit()
+
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["guardians"]) == 2
+    
+    # Verify both guardians have emails retrieved via relationship
+    guardian_emails = {g["guardian_email"] for g in data["guardians"]}
+    assert "first.guardian@example.com" in guardian_emails
+    assert "second.guardian@example.com" in guardian_emails
+    
+    # Verify relationship types
+    relationship_types = {g["relationship_type"] for g in data["guardians"]}
+    assert "primary" in relationship_types
+    assert "secondary" in relationship_types
+
+
+def test_get_student_guardians_guardian_without_email(client: TestClient, db_session):
+    """Test that guardian without email returns None for guardian_email"""
+    # Ensure guardian member has no email
+    guardian_member = db_session.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == mock_org_uuid,
+        OrganizationMember.user_id == mock_guardian_uuid
+    ).first()
+    guardian_member.invite_email = None
+    db_session.commit()
+    
+    # Create a link
+    link = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=mock_guardian_uuid,
+        student_id=mock_student_uuid,
+        relationship_type=GuardianRelationType.primary
+    )
+    db_session.add(link)
+    db_session.commit()
+
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["guardians"]) == 1
+    
+    guardian_entry = data["guardians"][0]
+    # Verify email is None when not present
+    assert guardian_entry["guardian_email"] is None
+    assert guardian_entry["guardian_id"] == str(mock_guardian_uuid)
+    assert guardian_entry["guardian"]["full_name"] == "Guardian User"
+
+
+def test_get_student_guardians_nonexistent_student(client: TestClient):
+    """Test that getting guardians for nonexistent student returns 404"""
+    nonexistent_student_id = uuid.uuid4()
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{nonexistent_student_id}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_get_student_guardians_no_guardians(client: TestClient):
+    """Test getting guardians for student with no guardians returns empty list"""
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["student"]["id"] == str(mock_student_uuid)
+    assert isinstance(data["guardians"], list)
+    assert len(data["guardians"]) == 0
+
+
 def test_get_guardian_students(client: TestClient, db_session):
     """Test getting all students for a guardian"""
     # Create a link first

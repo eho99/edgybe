@@ -192,6 +192,25 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
     )
   }
 
+  // Check if config has empty arrays (config loaded but no data)
+  const hasEmptyConfig = 
+    (!config.types || config.types.length === 0) &&
+    (!config.locations?.options || config.locations.options.length === 0) &&
+    (!config.time_of_day?.options || config.time_of_day.options.length === 0) &&
+    (!config.behaviors?.options || config.behaviors.options.length === 0)
+
+  if (hasEmptyConfig) {
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <p className="text-center text-muted-foreground">
+            Referral configuration is empty. Please configure referral types, locations, time of day, and behaviors in organization settings.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -271,11 +290,17 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
                 <SelectValue placeholder="Select location" />
               </SelectTrigger>
               <SelectContent>
-                {config.locations.options.map((location) => (
-                  <SelectItem key={location} value={location}>
-                    {location}
-                  </SelectItem>
-                ))}
+                {config.locations?.options && config.locations.options.length > 0 ? (
+                  config.locations.options.map((location) => (
+                    <SelectItem key={location} value={location}>
+                      {location}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="px-2 py-1 text-sm text-muted-foreground">
+                    No locations available
+                  </div>
+                )}
               </SelectContent>
             </Select>
             {formData.location === 'Other' && (
@@ -307,11 +332,17 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
                 <SelectValue placeholder="Select time of day" />
               </SelectTrigger>
               <SelectContent>
-                {config.time_of_day.options.map((time) => (
-                  <SelectItem key={time} value={time}>
-                    {time}
-                  </SelectItem>
-                ))}
+                {config.time_of_day?.options && config.time_of_day.options.length > 0 ? (
+                  config.time_of_day.options.map((time) => (
+                    <SelectItem key={time} value={time}>
+                      {time}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="px-2 py-1 text-sm text-muted-foreground">
+                    No time of day options available
+                  </div>
+                )}
               </SelectContent>
             </Select>
             {formData.time_of_day === 'Other' && (
@@ -330,7 +361,8 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
           <div className="space-y-3">
             <Label>Behaviors Observed</Label>
             <div className="grid grid-cols-2 gap-3">
-              {config.behaviors.options.map((behavior) => (
+              {config.behaviors?.options && config.behaviors.options.length > 0 ? (
+                config.behaviors.options.map((behavior) => (
                 <div key={behavior} className="flex items-center space-x-2">
                   <Checkbox
                     id={`behavior-${behavior}`}
@@ -344,7 +376,12 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
                     {behavior}
                   </label>
                 </div>
-              ))}
+              ))
+              ) : (
+                <div className="col-span-2 text-sm text-muted-foreground">
+                  No behaviors available
+                </div>
+              )}
             </div>
           </div>
 

@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button'
 import { useCurrentUserRole } from '@/hooks/useCurrentUserRole'
 import { PageLoader } from '@/components/ui/page-loader'
 import { ErrorDisplay } from '@/components/error/ErrorDisplay'
-import { Plus } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 
 export default function ReferralsPage() {
-  const { orgId, isLoading, error } = useCurrentUserRole()
+  const { orgId, isAdmin, isLoading, error } = useCurrentUserRole()
 
   if (isLoading) {
     return <PageLoader text="Loading referrals..." />
@@ -43,12 +43,22 @@ export default function ReferralsPage() {
             Manage student behavioral and supportive referrals
           </p>
         </div>
-        <Link href="/dashboard/referrals/create">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Referral
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Link href="/dashboard/referrals/templates">
+              <Button variant="outline">
+                <Settings className="mr-2 h-4 w-4" />
+                Email Templates
+              </Button>
+            </Link>
+          )}
+          <Link href="/dashboard/referrals/create">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Referral
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Referrals List */}

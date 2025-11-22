@@ -106,6 +106,45 @@ export interface EmailRequestPayload {
     template_id?: string
 }
 
+export interface EmailTemplate {
+    id: string
+    organization_id: string | null
+    created_by_user_id: string | null
+    name: string
+    subject_template: string
+    body_template: string
+    type: string
+    scope: string
+    is_active: boolean
+    created_at: string
+    updated_at: string
+    creator_name: string | null
+}
+
+export interface EmailTemplateCreatePayload {
+    name: string
+    subject_template: string
+    body_template: string
+    type: string
+    scope?: string
+    is_active?: boolean
+}
+
+export interface EmailTemplateUpdatePayload {
+    name?: string
+    subject_template?: string
+    body_template?: string
+    type?: string
+    scope?: string
+    is_active?: boolean
+}
+
+export interface EmailVariable {
+    label: string
+    value: string
+    description: string
+}
+
 // Hook to fetch referral config
 export function useReferralConfig(orgId: string | null) {
     const { data, error, isLoading, mutate } = useSWR<ReferralConfig>(
@@ -118,6 +157,20 @@ export function useReferralConfig(orgId: string | null) {
         isLoading,
         error,
         mutate,
+    }
+}
+
+// Hook to fetch email variables
+export function useEmailVariables(orgId: string | null) {
+    const { data, error, isLoading } = useSWR<EmailVariable[]>(
+        orgId ? `/api/v1/organizations/${orgId}/config/email-variables` : null,
+        apiClient
+    )
+
+    return {
+        variables: data || [],
+        isLoading,
+        error,
     }
 }
 
@@ -179,6 +232,49 @@ export function useReferral(orgId: string | null, referralId: string | null) {
 
     return {
         referral: data,
+        isLoading,
+        error,
+        mutate,
+    }
+}
+
+// Hook to fetch email templates
+export function useEmailTemplates(
+    orgId: string | null,
+    filters?: {
+        page?: number
+        per_page?: number
+        type?: string
+    }
+) {
+    const queryParams = new URLSearchParams()
+    if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                queryParams.append(key, value.toString())
+            }
+        })
+    }
+
+    const queryString = queryParams.toString()
+    const endpoint = orgId
+        ? `/api/v1/organizations/${orgId}/email-templates${queryString ? `?${queryString}` : ''}`
+        : null
+
+    const { data, error, isLoading, mutate } = useSWR<{
+        templates: EmailTemplate[]
+        total: number
+        page: number
+        per_page: number
+        total_pages: number
+    }>(endpoint, apiClient)
+
+    return {
+        templates: data?.templates || [],
+        total: data?.total || 0,
+        page: data?.page || 1,
+        per_page: data?.per_page || 20,
+        total_pages: data?.total_pages || 0,
         isLoading,
         error,
         mutate,
@@ -270,6 +366,42 @@ export async function sendReferralEmail(
         {
             method: 'POST',
             body: payload,
+        }
+    )
+}
+
+export async function createEmailTemplate(
+    orgId: string,
+    payload: EmailTemplateCreatePayload
+): Promise<EmailTemplate> {
+    return await apiClient(`/api/v1/organizations/${orgId}/email-templates`, {
+        method: 'POST',
+        body: payload,
+    })
+}
+
+export async function updateEmailTemplate(
+    orgId: string,
+    templateId: string,
+    payload: EmailTemplateUpdatePayload
+): Promise<EmailTemplate> {
+    return await apiClient(
+        `/api/v1/organizations/${orgId}/email-templates/${templateId}`,
+        {
+            method: 'PATCH',
+            body: payload,
+        }
+    )
+}
+
+export async function deleteEmailTemplate(
+    orgId: string,
+    templateId: string
+): Promise<void> {
+    await apiClient(
+        `/api/v1/organizations/${orgId}/email-templates/${templateId}`,
+        {
+            method: 'DELETE',
         }
     )
 }

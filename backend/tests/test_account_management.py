@@ -69,14 +69,15 @@ def sample_member(db_session, test_org):
 
 @pytest.fixture
 def sample_inactive_member(db_session, test_org):
-    """Create a sample inactive member."""
+    """Create a sample inactive member (staff role, not student/guardian)."""
     user_id = uuid4()
     profile = Profile(
         id=user_id,
         full_name="Inactive User",
         has_completed_profile=True,
-        grade_level="8",
-        student_id="STU004",
+        phone="(555) 345-6789",
+        city="Springfield",
+        state="IL",
         is_active=False
     )
     db_session.add(profile)
@@ -85,7 +86,7 @@ def sample_inactive_member(db_session, test_org):
         id=uuid4(),
         organization_id=test_org.id,
         user_id=user_id,
-        role=OrgRole.student,
+        role=OrgRole.staff,  # Use staff role, not student (students/guardians are filtered out)
         status=MemberStatus.inactive,
         joined_at=datetime.utcnow()
     )
@@ -150,22 +151,46 @@ class TestAccountManagementEndpoints:
         # Should find our sample member
         assert any(acc["id"] == str(sample_member.id) for acc in data["accounts"])
     
-    def test_list_accounts_includes_inactive(self, client: TestClient, test_org, sample_inactive_member, mock_supabase_client):
+    def test_list_accounts_includes_inactive(self, client: TestClient, test_org, sample_inactive_member, mock_supabase_client, mock_user, db_session):
         """Test listing accounts includes inactive members"""
-        # Mock Supabase - use UUID object to match database
-        mock_user = type('obj', (object,), {
-            'id': sample_inactive_member.user_id,  # Use UUID object, not string
+        # Verify the inactive member exists in the database
+        db_member = db_session.query(OrganizationMember).filter(
+            OrganizationMember.id == sample_inactive_member.id
+        ).first()
+        assert db_member is not None, "Inactive member should exist in database"
+        assert db_member.status == MemberStatus.inactive, "Member should be inactive"
+        assert db_member.role == OrgRole.staff, "Member should be staff role"
+        
+        # Mock Supabase - include both admin user and inactive member user
+        # Use UUID objects to match database
+        admin_mock_user = type('obj', (object,), {
+            'id': mock_user.id,  # Admin user from test_org fixture
+            'email': 'admin@example.com'
+        })()
+        inactive_mock_user = type('obj', (object,), {
+            'id': sample_inactive_member.user_id,  # Inactive member user
             'email': 'inactive@example.com'
         })()
-        mock_supabase_client.auth.admin.list_users.return_value = [mock_user]
+        mock_supabase_client.auth.admin.list_users.return_value = [admin_mock_user, inactive_mock_user]
         
         response = client.get(f"/api/v1/organizations/{test_org.id}/members")
         
         assert response.status_code == 200
         data = response.json()
-        # Should include inactive members by default
+        # Should include inactive members by default (no status filter)
+        # Check that our specific inactive member is in the results
         inactive_accounts = [acc for acc in data["accounts"] if acc["status"] == "inactive"]
-        assert len(inactive_accounts) >= 1
+        member_found = any(acc["id"] == str(sample_inactive_member.id) for acc in data["accounts"])
+        
+        assert len(inactive_accounts) >= 1, (
+            f"Expected at least 1 inactive account, but got {len(inactive_accounts)}. "
+            f"Total accounts: {len(data['accounts'])}, "
+            f"All accounts: {[(acc['id'], acc['status'], acc['role']) for acc in data['accounts']]}"
+        )
+        assert member_found, (
+            f"Inactive member with id {sample_inactive_member.id} not found in results. "
+            f"All account IDs: {[acc['id'] for acc in data['accounts']]}"
+        )
 
     def test_list_accounts_excludes_student_and_guardian_roles(self, client: TestClient, test_org, sample_member, mock_supabase_client, db_session):
         """Ensure student and guardian records are not returned in account listing"""

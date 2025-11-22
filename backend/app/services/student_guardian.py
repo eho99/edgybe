@@ -80,10 +80,10 @@ class StudentGuardianService:
         if not student:
             raise HTTPException(status_code=404, detail="Student not found")
 
-        # Return the ORM objects directly. Pydantic will handle the conversion.
+        # Eagerly load guardian and their memberships to access email via relationship
         return self.db.query(models.StudentGuardian).options(
             joinedload(models.StudentGuardian.student),
-            joinedload(models.StudentGuardian.guardian)
+            joinedload(models.StudentGuardian.guardian).joinedload(models.Profile.memberships)
         ).filter(
             models.StudentGuardian.organization_id == org_id,
             models.StudentGuardian.student_id == student_id
@@ -321,6 +321,7 @@ class StudentGuardianService:
         member = models.OrganizationMember(
             organization_id=org_id,
             user_id=profile_id,
+            invite_email=email,  # Store email for guardian lookup
             role=models.OrgRole.guardian,
             status=models.MemberStatus.inactive
         )

@@ -4,10 +4,13 @@ from pydantic import UUID4
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func
 from typing import Optional, List
+import logging
 
 from .. import schemas, auth, models
 from ..db import get_db
 from ..services import pdf_service, email_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1/organizations/{org_id}",
@@ -34,10 +37,16 @@ async def get_referral_config(
             detail="Organization not found"
         )
     
+    # Check if preset_config exists and is not empty
     if not org.preset_config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Referral configuration not found for this organization"
+        logger.warning(f"Organization {org_id} has no preset_config. Returning default empty config.")
+        # Return empty config structure instead of error
+        return schemas.ReferralConfigResponse(
+            types=[],
+            locations={"options": [], "label": "locations"},
+            time_of_day={"options": [], "label": "time_of_day"},
+            behaviors={"options": [], "label": "behaviors"},
+            common_interventions=[]
         )
     
     # Parse config if it's a string
@@ -45,54 +54,128 @@ async def get_referral_config(
     if isinstance(config, str):
         try:
             config = json.loads(config)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse preset_config as JSON for org {org_id}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Invalid configuration format"
             )
-            
+    
+    # Log the config structure for debugging
+    logger.debug(f"Organization {org_id} preset_config structure: {type(config)}, keys: {list(config.keys()) if isinstance(config, dict) else 'not a dict'}")
+    
     # Handle nested referral_config vs flat config
-    if 'referral_config' in config:
-        referral_config = config['referral_config']
-    elif 'location' in config: # Assume flat structure if keys exist directly
-        referral_config = config
+    referral_config = None
+    if isinstance(config, dict):
+        if 'referral_config' in config:
+            referral_config = config['referral_config']
+            logger.debug(f"Found nested 'referral_config' key")
+        elif 'types' in config or 'locations' in config or 'behaviors' in config or 'referral_type' in config or 'observed_behaviors' in config:
+            # Assume flat structure if referral config keys exist directly
+            referral_config = config
+            logger.debug(f"Using flat config structure with keys: {list(config.keys())}")
+        else:
+            # Config exists but doesn't have referral config structure
+            logger.warning(f"Organization {org_id} preset_config exists but doesn't contain referral config. Keys: {list(config.keys())}")
+            # Return empty config structure instead of error
+            return schemas.ReferralConfigResponse(
+                types=[],
+                locations={"options": [], "label": "locations"},
+                time_of_day={"options": [], "label": "time_of_day"},
+                behaviors={"options": [], "label": "behaviors"},
+                common_interventions=[]
+            )
     else:
-         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Referral configuration not found for this organization"
+        logger.error(f"Organization {org_id} preset_config is not a dict: {type(config)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid referral configuration format: preset_config must be a dictionary"
+        )
+
+    if not referral_config or not isinstance(referral_config, dict):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid referral configuration format"
         )
 
     # Map keys to schema if needed
     # Schema expects: types, locations, time_of_day, behaviors, common_interventions
+    # Actual config may have: referral_type, observed_behaviors (or types, behaviors)
     
     # Helper to extract options list if present, or use list directly
-    def get_options(key, source_key=None):
-        k = source_key or key
-        if k not in referral_config:
+    # Supports fallback keys for different naming conventions
+    def get_options(key, fallback_keys=None):
+        # Try primary key first
+        if key in referral_config:
+            val = referral_config[key]
+            if isinstance(val, dict) and 'options' in val:
+                return val['options']
+            if isinstance(val, list):
+                return val
             return []
-        val = referral_config[k]
-        if isinstance(val, dict) and 'options' in val:
-            return val['options']
-        if isinstance(val, list):
-            return val
+        
+        # Try fallback keys if provided
+        if fallback_keys:
+            for fallback_key in fallback_keys:
+                if fallback_key in referral_config:
+                    val = referral_config[fallback_key]
+                    if isinstance(val, dict) and 'options' in val:
+                        return val['options']
+                    if isinstance(val, list):
+                        return val
+                    return []
+        
+        logger.warning(f"Key '{key}' (and fallbacks {fallback_keys}) not found in referral_config. Available keys: {list(referral_config.keys())}")
         return []
 
     # Helper to get dict object (for location, time_of_day, behaviors)
-    def get_dict(key, source_key=None):
-        k = source_key or key
-        if k in referral_config and isinstance(referral_config[k], dict):
-            return referral_config[k]
+    # Supports fallback keys for different naming conventions
+    def get_dict(key, fallback_keys=None):
+        # Try primary key first
+        if key in referral_config and isinstance(referral_config[key], dict):
+            return referral_config[key]
+        # If key exists but is a list, wrap it in options
+        if key in referral_config and isinstance(referral_config[key], list):
+            return {"options": referral_config[key], "label": key}
+        
+        # Try fallback keys if provided
+        if fallback_keys:
+            for fallback_key in fallback_keys:
+                if fallback_key in referral_config and isinstance(referral_config[fallback_key], dict):
+                    return referral_config[fallback_key]
+                if fallback_key in referral_config and isinstance(referral_config[fallback_key], list):
+                    return {"options": referral_config[fallback_key], "label": fallback_key}
+        
+        logger.warning(f"Key '{key}' (and fallbacks {fallback_keys}) not found in referral_config. Available keys: {list(referral_config.keys())}")
         return {"options": [], "label": key}
 
+    # Map actual config keys to expected schema keys
+    # types can come from "types" or "referral_type"
+    # behaviors can come from "behaviors" or "observed_behaviors"
     response_data = {
-        "types": get_options("types", "referral_type"),
-        "locations": get_dict("locations", "location"),
+        "types": get_options("types", fallback_keys=["referral_type"]),
+        "locations": get_dict("locations"),
         "time_of_day": get_dict("time_of_day"),
-        "behaviors": get_dict("behaviors", "observed_behaviors"),
+        "behaviors": get_dict("behaviors", fallback_keys=["observed_behaviors"]),
         "common_interventions": get_options("common_interventions")
     }
     
+    # Log if we're returning empty configs (for debugging)
+    if not response_data["types"] and not response_data["locations"].get("options") and not response_data["behaviors"].get("options"):
+        logger.warning(f"Returning mostly empty referral config. referral_config keys: {list(referral_config.keys())}")
+    
     return schemas.ReferralConfigResponse(**response_data)
+
+
+@router.get("/config/email-variables")
+async def get_email_variables_endpoint(
+    org_id: UUID4,
+    member: schemas.AuthenticatedMember = Depends(auth.get_current_active_member)
+):
+    """
+    Get available email variables.
+    """
+    return email_service.get_email_variables()
 
 
 @router.post("/referrals", response_model=schemas.ReferralResponse)
@@ -125,7 +208,7 @@ async def create_referral(
         organization_id=org_id,
         student_id=referral_data.student_id,
         author_id=member.user.id,
-        status="DRAFT",
+        status="SUBMITTED",
         type=referral_data.type,
         location=referral_data.location,
         time_of_day=referral_data.time_of_day,
@@ -685,3 +768,194 @@ async def send_referral_email_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send email: {str(e)}"
         )
+
+# -------------------------------------------------------------------
+# Email Template Endpoints
+# -------------------------------------------------------------------
+
+@router.post("/email-templates", response_model=schemas.EmailTemplateResponse)
+async def create_email_template(
+    org_id: UUID4,
+    template_data: schemas.EmailTemplateCreate,
+    db: Session = Depends(get_db),
+    member: schemas.AuthenticatedMember = Depends(auth.require_admin_role)
+):
+    """
+    Create a new email template. Only Admins.
+    """
+    template = models.EmailTemplate(
+        organization_id=org_id,
+        created_by_user_id=member.user.id,
+        **template_data.model_dump()
+    )
+    
+    db.add(template)
+    db.commit()
+    db.refresh(template)
+    
+    # Fetch creator
+    creator = db.query(models.Profile).filter(models.Profile.id == template.created_by_user_id).first()
+    
+    return schemas.EmailTemplateResponse(
+        **template.__dict__,
+        creator_name=creator.full_name if creator else None
+    )
+
+
+@router.get("/email-templates", response_model=schemas.EmailTemplateListResponse)
+async def list_email_templates(
+    org_id: UUID4,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    member: schemas.AuthenticatedMember = Depends(auth.get_current_active_member)
+):
+    """
+    List email templates.
+    Admins see all + system templates.
+    Staff see active organization templates + system templates.
+    """
+    query = db.query(models.EmailTemplate).filter(
+        or_(
+            models.EmailTemplate.organization_id == org_id,
+            models.EmailTemplate.scope == "system"
+        )
+    )
+    
+    # Staff only see active templates
+    if member.role == models.OrgRole.staff:
+        query = query.filter(models.EmailTemplate.is_active == True)
+        
+    if type:
+        query = query.filter(models.EmailTemplate.type == type)
+        
+    # Get total count
+    total = query.count()
+    
+    # Apply pagination
+    offset = (page - 1) * per_page
+    templates = query.order_by(models.EmailTemplate.created_at.desc()).offset(offset).limit(per_page).all()
+    
+    template_responses = []
+    for template in templates:
+        creator = db.query(models.Profile).filter(models.Profile.id == template.created_by_user_id).first()
+        template_responses.append(schemas.EmailTemplateResponse(
+            **template.__dict__,
+            creator_name=creator.full_name if creator else None
+        ))
+    
+    total_pages = (total + per_page - 1) // per_page
+    
+    return schemas.EmailTemplateListResponse(
+        templates=template_responses,
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages
+    )
+
+
+@router.get("/email-templates/{template_id}", response_model=schemas.EmailTemplateResponse)
+async def get_email_template(
+    org_id: UUID4,
+    template_id: UUID4,
+    db: Session = Depends(get_db),
+    member: schemas.AuthenticatedMember = Depends(auth.get_current_active_member)
+):
+    """
+    Get a single email template.
+    """
+    template = db.query(models.EmailTemplate).filter(
+        and_(
+            models.EmailTemplate.id == template_id,
+            or_(
+                models.EmailTemplate.organization_id == org_id,
+                models.EmailTemplate.scope == "system"
+            )
+        )
+    ).first()
+    
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Template not found"
+        )
+        
+    creator = db.query(models.Profile).filter(models.Profile.id == template.created_by_user_id).first()
+    
+    return schemas.EmailTemplateResponse(
+        **template.__dict__,
+        creator_name=creator.full_name if creator else None
+    )
+
+
+@router.patch("/email-templates/{template_id}", response_model=schemas.EmailTemplateResponse)
+async def update_email_template(
+    org_id: UUID4,
+    template_id: UUID4,
+    template_data: schemas.EmailTemplateUpdate,
+    db: Session = Depends(get_db),
+    member: schemas.AuthenticatedMember = Depends(auth.require_admin_role)
+):
+    """
+    Update an email template. Only Admins.
+    Cannot update system templates.
+    """
+    template = db.query(models.EmailTemplate).filter(
+        and_(
+            models.EmailTemplate.id == template_id,
+            models.EmailTemplate.organization_id == org_id
+        )
+    ).first()
+    
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Template not found or you do not have permission to edit it"
+        )
+        
+    # Update fields
+    update_dict = template_data.model_dump(exclude_unset=True)
+    for key, value in update_dict.items():
+        setattr(template, key, value)
+        
+    db.commit()
+    db.refresh(template)
+    
+    creator = db.query(models.Profile).filter(models.Profile.id == template.created_by_user_id).first()
+    
+    return schemas.EmailTemplateResponse(
+        **template.__dict__,
+        creator_name=creator.full_name if creator else None
+    )
+
+
+@router.delete("/email-templates/{template_id}")
+async def delete_email_template(
+    org_id: UUID4,
+    template_id: UUID4,
+    db: Session = Depends(get_db),
+    member: schemas.AuthenticatedMember = Depends(auth.require_admin_role)
+):
+    """
+    Delete an email template. Only Admins.
+    Cannot delete system templates.
+    """
+    template = db.query(models.EmailTemplate).filter(
+        and_(
+            models.EmailTemplate.id == template_id,
+            models.EmailTemplate.organization_id == org_id
+        )
+    ).first()
+    
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Template not found or you do not have permission to delete it"
+        )
+        
+    db.delete(template)
+    db.commit()
+    
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

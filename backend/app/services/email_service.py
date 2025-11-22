@@ -13,6 +13,30 @@ logger = logging.getLogger(__name__)
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
 
+# Available email variables
+EMAIL_VARIABLES = [
+    {"label": "Student Name", "value": "{{student_name}}", "description": "The student's full name"},
+    {"label": "Student ID", "value": "{{student_id}}", "description": "The student's ID number"},
+    {"label": "Grade Level", "value": "{{grade_level}}", "description": "The student's grade"},
+    {"label": "Incident Type", "value": "{{type}}", "description": "Type of referral (Behavior, Academic, etc.)"},
+    {"label": "Location", "value": "{{location}}", "description": "Where the incident occurred"},
+    {"label": "Time", "value": "{{time_of_day}}", "description": "When the incident occurred"},
+    {"label": "Behaviors", "value": "{{behaviors}}", "description": "Comma-separated list of behaviors"},
+    {"label": "Description", "value": "{{description}}", "description": "Full incident description"},
+    {"label": "Date Created", "value": "{{created_at}}", "description": "When the referral was created"},
+    {"label": "Author Name", "value": "{{author_name}}", "description": "Name of staff member who created referral"},
+    {"label": "Org Name", "value": "{{organization_name}}", "description": "Name of your organization"},
+    {"label": "Org Phone", "value": "{{organization_phone}}", "description": "Phone number of your organization"},
+]
+
+
+def get_email_variables() -> List[dict]:
+    """
+    Get list of available email template variables.
+    """
+    return EMAIL_VARIABLES
+
+
 def send_referral_email(
     db: Session,
     referral_id: UUID4,

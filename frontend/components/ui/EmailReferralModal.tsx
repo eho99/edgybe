@@ -1,15 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { sendReferralEmail } from '@/hooks/useReferrals'
+import { sendReferralEmail, useEmailTemplates } from '@/hooks/useReferrals'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/useToast'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import apiClient from '@/lib/apiClient'
-import { X } from 'lucide-react'
+import { X, ChevronDown, ChevronUp } from 'lucide-react'
+import { VariableInserter } from './VariableInserter'
 
 interface EmailReferralModalProps {
   orgId: string
@@ -32,6 +36,7 @@ export function EmailReferralModal({
 }: EmailReferralModalProps) {
   const { toast } = useToast()
   const { handleError } = useErrorHandler()
+  const { templates } = useEmailTemplates(orgId, { type: 'referral' })
 
   const [guardians, setGuardians] = useState<GuardianInfo[]>([])
   const [loadingGuardians, setLoadingGuardians] = useState(true)
@@ -39,21 +44,28 @@ export function EmailReferralModal({
   const [customEmail, setCustomEmail] = useState('')
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('none')
   const [isSending, setIsSending] = useState(false)
+  const [activeField, setActiveField] = useState<'subject' | 'message'>('message')
+  const [showVariables, setShowVariables] = useState(false)
 
   // Fetch guardians for the student
   useEffect(() => {
     async function fetchGuardians() {
       try {
-        const response = await apiClient<{ guardians: { guardian: GuardianInfo }[] }>(
+        const response = await apiClient<{ guardians: { guardian: GuardianInfo, guardian_email?: string }[] }>(
           `/api/v1/organizations/${orgId}/students/${studentId}/guardians`
         )
         
         const guardiansList = response.guardians
-          .map((g) => g.guardian)
-          .filter((g) => g.email) // Only include guardians with email
+          .map((g) => ({
+            ...g.guardian,
+            email: g.guardian_email || undefined
+          }))
+          .filter((g): g is GuardianInfo => !!g.email) // Only include guardians with email
 
         setGuardians(guardiansList)
+        // Pre-select all guardians by default? Maybe better to let user choose.
       } catch (err) {
         handleError(err, { title: 'Failed to load guardians' })
       } finally {
@@ -63,6 +75,17 @@ export function EmailReferralModal({
     fetchGuardians()
   }, [orgId, studentId])
 
+  // Load template when selected
+  useEffect(() => {
+    if (selectedTemplateId && selectedTemplateId !== 'none') {
+      const template = templates.find(t => t.id === selectedTemplateId)
+      if (template) {
+        setSubject(template.subject_template)
+        setMessage(template.body_template)
+      }
+    }
+  }, [selectedTemplateId, templates])
+
   const toggleEmail = (email: string) => {
     setSelectedEmails((prev) =>
       prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]
@@ -71,14 +94,25 @@ export function EmailReferralModal({
 
   const handleAddCustomEmail = () => {
     if (customEmail && !selectedEmails.includes(customEmail)) {
+      // Basic email validation
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customEmail)) {
+        toast({ title: 'Invalid email address', variant: 'destructive' })
+        return
+      }
       setSelectedEmails((prev) => [...prev, customEmail])
       setCustomEmail('')
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  const handleInsertVariable = (value: string) => {
+    if (activeField === 'subject') {
+      setSubject(prev => prev + value)
+    } else {
+      setMessage(prev => prev + value)
+    }
+  }
+
+  const handleSubmit = async () => {
     if (selectedEmails.length === 0) {
       toast({
         variant: 'destructive',
@@ -95,6 +129,7 @@ export function EmailReferralModal({
         recipient_emails: selectedEmails,
         subject: subject || undefined,
         message: message || undefined,
+        template_id: selectedTemplateId !== 'none' ? selectedTemplateId : undefined
       })
 
       if (result.success) {
@@ -119,37 +154,32 @@ export function EmailReferralModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-2xl rounded-lg bg-white shadow-lg">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b p-6">
-          <h2 className="text-xl font-semibold">Email Referral</h2>
-          <button
-            onClick={onClose}
-            className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Email Referral Report</DialogTitle>
+          <DialogDescription>
+            Send the referral report PDF via email. You can use a template or write a custom message.
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6">
+        <div className="grid gap-6 py-4 md:grid-cols-2">
+          {/* Left Column: Recipients & Template Selection */}
           <div className="space-y-6">
-            {/* Guardian Emails */}
-            {loadingGuardians ? (
-              <div className="py-4 text-center text-muted-foreground">
-                Loading guardians...
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <Label>Recipients</Label>
-                {guardians.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No guardians with email addresses found for this student.
-                  </p>
-                ) : (
-                  <div className="space-y-2 rounded-md border p-3">
-                    {guardians.map((guardian) => (
+            <div className="space-y-3">
+              <Label>Recipients</Label>
+              {loadingGuardians ? (
+                <div className="py-4 text-center text-muted-foreground text-sm">
+                  Loading guardians...
+                </div>
+              ) : (
+                <div className="space-y-2 rounded-md border p-3 max-h-[150px] overflow-y-auto">
+                  {guardians.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No guardians with email addresses found for this student.
+                    </p>
+                  ) : (
+                    guardians.map((guardian) => (
                       <div key={guardian.id} className="flex items-center space-x-2">
                         <Checkbox
                           id={`guardian-${guardian.id}`}
@@ -163,13 +193,12 @@ export function EmailReferralModal({
                           {guardian.full_name} ({guardian.email})
                         </label>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
 
-            {/* Add Custom Email */}
             <div className="space-y-2">
               <Label htmlFor="custom-email">Add Custom Email</Label>
               <div className="flex gap-2">
@@ -215,42 +244,83 @@ export function EmailReferralModal({
               )}
             </div>
 
-            {/* Subject */}
             <div className="space-y-2">
-              <Label htmlFor="subject">Subject (Optional)</Label>
+              <Label>Template (Optional)</Label>
+              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a template" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Template (Custom)</SelectItem>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Right Column: Email Content */}
+          <div className="space-y-4">
+            <div className="space-y-2 rounded-md border p-4 bg-muted/10">
+                <div className="flex items-center justify-between">
+                    <Label>Variable Inserter</Label>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setShowVariables(!showVariables)}
+                      type="button"
+                    >
+                      {showVariables ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                </div>
+                
+                {showVariables && (
+                    <div className="pt-2">
+                        <p className="text-xs text-muted-foreground mb-2">
+                            Click to insert variable into <strong>{activeField === 'subject' ? 'Subject' : 'Message'}</strong>.
+                        </p>
+                        <VariableInserter orgId={orgId} onInsert={handleInsertVariable} />
+                    </div>
+                )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="subject">Subject</Label>
               <Input
                 id="subject"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                placeholder="Leave blank for default subject"
+                onFocus={() => setActiveField('subject')}
+                placeholder="Referral Report"
               />
             </div>
 
-            {/* Message */}
             <div className="space-y-2">
-              <Label htmlFor="message">Message (Optional)</Label>
-              <textarea
+              <Label htmlFor="message">Message</Label>
+              <Textarea
                 id="message"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="Leave blank for default message. The referral PDF will be attached."
+                onFocus={() => setActiveField('message')}
+                className="min-h-[200px] font-mono"
+                placeholder="Please find attached..."
               />
             </div>
           </div>
+        </div>
 
-          {/* Footer */}
-          <div className="mt-6 flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSending}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSending || selectedEmails.length === 0}>
-              {isSending ? 'Sending...' : 'Send Email'}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSending}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={isSending || selectedEmails.length === 0}>
+            {isSending ? 'Sending...' : 'Send Email'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
-

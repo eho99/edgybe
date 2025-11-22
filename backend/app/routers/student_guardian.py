@@ -2,10 +2,13 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import UUID4
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+import logging
 
 from .. import schemas, auth, services, models
 from ..db import get_db
 from ..schemas.user import ProfileUpdateSchema
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1/organizations/{org_id}",
@@ -120,9 +123,71 @@ async def get_student_guardians(
         raise HTTPException(status_code=404, detail="Student not found")
     links = services.StudentGuardianService(db).get_guardians_for_student(org_id, student_id)
     
+    # Fetch emails from Supabase Auth for guardians who have user accounts
+    guardian_user_ids = [link.guardian_id for link in links if link.guardian_id]
+    user_emails = {}
+    
+    if guardian_user_ids:
+        try:
+            from ..auth import supabase
+            # Get all users from Supabase Auth
+            users_response = supabase.auth.admin.list_users()
+            # Handle different response formats: list directly or response object with .users/.data
+            users_list = None
+            if users_response:
+                if isinstance(users_response, list):
+                    # Direct list of User objects
+                    users_list = users_response
+                elif hasattr(users_response, 'users') and users_response.users:
+                    # Response object with .users attribute
+                    users_list = users_response.users
+                elif hasattr(users_response, 'data') and users_response.data:
+                    # Response object with .data attribute
+                    users_list = users_response.data
+            
+            if users_list:
+                for user in users_list:
+                    # Convert user.id to UUID if it's a string (Supabase returns strings)
+                    user_id = user.id
+                    if isinstance(user_id, str):
+                        from uuid import UUID
+                        try:
+                            user_id = UUID(user_id)
+                        except (ValueError, AttributeError):
+                            continue
+                    
+                    if user_id in guardian_user_ids:
+                        user_emails[user_id] = user.email
+        except Exception as e:
+            # Log error but continue - we'll fall back to invite_email
+            logger.warning(f"Failed to fetch guardian emails from Supabase: {str(e)}")
+    
+    enhanced_links = []
+    for link in links:
+        # Convert to Pydantic model first to handle nested relations
+        link_data = schemas.GuardianLinkResponse.model_validate(link)
+        
+        # Get email from guardian's membership for this org using the relationship
+        # This is more reliable than a separate query since we're using the same guardian object
+        guardian_membership = next(
+            (m for m in link.guardian.memberships if m.organization_id == org_id),
+            None
+        )
+        
+        # Try to get email from Supabase Auth first (for users with accounts),
+        # then fall back to invite_email (for guardians created without accounts)
+        guardian_email = None
+        if link.guardian_id and link.guardian_id in user_emails:
+            guardian_email = user_emails[link.guardian_id]
+        elif guardian_membership and guardian_membership.invite_email:
+            guardian_email = guardian_membership.invite_email
+        
+        link_data = link_data.model_copy(update={"guardian_email": guardian_email})
+        enhanced_links.append(link_data)
+    
     return {
         "student": student_profile,
-        "guardians": links # Pydantic iterates this list and converts each item
+        "guardians": enhanced_links
     }
 
 @router.get("/guardians/{guardian_id}/students", response_model=schemas.GuardianWithStudentsResponse)
