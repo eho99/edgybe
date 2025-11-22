@@ -41,6 +41,8 @@ export interface Referral {
     time_of_day: string | null
     behaviors: string[] | null
     description: string | null
+    archived: boolean
+    archived_at: string | null
     created_at: string
     updated_at: string
     student_name: string | null
@@ -59,6 +61,8 @@ export interface ReferralListItem {
     type: string
     location: string | null
     time_of_day: string | null
+    archived: boolean
+    archived_at: string | null
     created_at: string
     updated_at: string
     student_name: string | null
@@ -184,6 +188,7 @@ export function useReferrals(
         status?: string
         type?: string
         author_id?: string
+        include_archived?: boolean
     }
 ) {
     // Build query string
@@ -302,6 +307,30 @@ export async function updateReferral(
         {
             method: 'PATCH',
             body: payload,
+        }
+    )
+}
+
+export async function archiveReferral(
+    orgId: string,
+    referralId: string
+): Promise<Referral> {
+    return await apiClient(
+        `/api/v1/organizations/${orgId}/referrals/${referralId}/archive`,
+        {
+            method: 'POST',
+        }
+    )
+}
+
+export async function unarchiveReferral(
+    orgId: string,
+    referralId: string
+): Promise<Referral> {
+    return await apiClient(
+        `/api/v1/organizations/${orgId}/referrals/${referralId}/unarchive`,
+        {
+            method: 'POST',
         }
     )
 }

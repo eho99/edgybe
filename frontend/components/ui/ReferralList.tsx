@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useReferrals } from '@/hooks/useReferrals'
+import { useReferrals, archiveReferral, unarchiveReferral } from '@/hooks/useReferrals'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -10,6 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader } from '@/components/ui/loader'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useToast } from '@/hooks/useToast'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { Archive, ArchiveRestore } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface ReferralListProps {
   orgId: string
@@ -25,22 +29,54 @@ const STATUS_COLORS: Record<string, 'default' | 'warning' | 'success' | 'destruc
 
 export function ReferralList({ orgId, basePath = `/dashboard/organizations/${orgId}/referrals` }: ReferralListProps) {
   const [page, setPage] = useState(1)
+  const [includeArchived, setIncludeArchived] = useState(false)
   const [filters, setFilters] = useState({
     status: '',
     type: '',
     search: '',
   })
+  const { toast } = useToast()
+  const { handleError } = useErrorHandler()
 
-  const { referrals, total, per_page, total_pages, isLoading } = useReferrals(orgId, {
+  const { referrals, total, per_page, total_pages, isLoading, mutate } = useReferrals(orgId, {
     page,
     per_page: 20,
     status: filters.status || undefined,
     type: filters.type || undefined,
+    include_archived: includeArchived,
   })
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
     setPage(1) // Reset to first page when filter changes
+  }
+
+  const handleArchive = async (referralId: string) => {
+    try {
+      await archiveReferral(orgId, referralId)
+      toast({
+        variant: 'success',
+        title: 'Referral Archived',
+        description: 'The referral has been archived successfully',
+      })
+      mutate() // Refresh the list
+    } catch (err) {
+      handleError(err, { title: 'Failed to archive referral' })
+    }
+  }
+
+  const handleUnarchive = async (referralId: string) => {
+    try {
+      await unarchiveReferral(orgId, referralId)
+      toast({
+        variant: 'success',
+        title: 'Referral Unarchived',
+        description: 'The referral has been restored successfully',
+      })
+      mutate() // Refresh the list
+    } catch (err) {
+      handleError(err, { title: 'Failed to unarchive referral' })
+    }
   }
 
   const formatDate = (dateString: string) => {
@@ -73,7 +109,7 @@ export function ReferralList({ orgId, basePath = `/dashboard/organizations/${org
       </CardHeader>
       <CardContent>
         {/* Filters */}
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
           <div>
             <Input
               placeholder="Search by student name..."
@@ -114,6 +150,22 @@ export function ReferralList({ orgId, basePath = `/dashboard/organizations/${org
               </SelectContent>
             </Select>
           </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="include-archived"
+              checked={includeArchived}
+              onCheckedChange={(checked) => {
+                setIncludeArchived(checked === true)
+                setPage(1)
+              }}
+            />
+            <label
+              htmlFor="include-archived"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Include archived
+            </label>
+          </div>
         </div>
 
         {/* Table */}
@@ -150,9 +202,16 @@ export function ReferralList({ orgId, basePath = `/dashboard/organizations/${org
                       </TableCell>
                       <TableCell>{referral.type}</TableCell>
                       <TableCell>
-                        <Badge variant={STATUS_COLORS[referral.status] || 'default'}>
-                          {referral.status}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={STATUS_COLORS[referral.status] || 'default'}>
+                            {referral.status}
+                          </Badge>
+                          {referral.archived && (
+                            <Badge variant="outline" className="text-xs">
+                              Archived
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{referral.location || 'N/A'}</TableCell>
                       <TableCell className="text-sm">
@@ -165,13 +224,32 @@ export function ReferralList({ orgId, basePath = `/dashboard/organizations/${org
                         <Badge variant="outline">{referral.intervention_count}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Link
-                          href={`${basePath}/${referral.id}`}
-                        >
-                          <Button variant="ghost" size="sm">
-                            View
-                          </Button>
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <Link href={`${basePath}/${referral.id}`}>
+                            <Button variant="ghost" size="sm">
+                              View
+                            </Button>
+                          </Link>
+                          {referral.archived ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleUnarchive(referral.id)}
+                              title="Unarchive referral"
+                            >
+                              <ArchiveRestore className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleArchive(referral.id)}
+                              title="Archive referral"
+                            >
+                              <Archive className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

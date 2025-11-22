@@ -23,6 +23,10 @@ class Referral(Base):
     behaviors = Column(JSON, nullable=True)  # JSONB array of strings
     description = Column(Text, nullable=True)
     
+    # Archiving
+    archived = Column(Boolean, nullable=False, default=False, index=True)
+    archived_at = Column(DateTime(timezone=True), nullable=True)
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), nullable=False, index=True)
     updated_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)

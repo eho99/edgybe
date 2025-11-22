@@ -561,6 +561,234 @@ class TestReferralUpdate:
 
 
 # ============================================================================
+# TESTS: Archive/Unarchive Endpoints
+# ============================================================================
+
+class TestReferralArchiving:
+    """Tests for POST /referrals/{id}/archive and /unarchive endpoints."""
+    
+    def test_archive_referral_success(
+        self,
+        client: TestClient,
+        test_organization,
+        test_admin_profile,
+        test_student_profile,
+        test_referral,
+        db_session
+    ):
+        """
+        ARRANGE: Existing referral
+        ACT: POST /referrals/{id}/archive
+        ASSERT: Referral is archived with archived_at timestamp
+        """
+        # Act
+        response = client.post(
+            f"/api/v1/organizations/{test_organization.id}/referrals/{test_referral.id}/archive"
+        )
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["archived"] is True
+        assert data["archived_at"] is not None
+        
+        # Verify in database
+        db_session.refresh(test_referral)
+        assert test_referral.archived is True
+        assert test_referral.archived_at is not None
+    
+    def test_unarchive_referral_success(
+        self,
+        client: TestClient,
+        test_organization,
+        test_admin_profile,
+        test_student_profile,
+        test_referral,
+        db_session
+    ):
+        """
+        ARRANGE: Archived referral
+        ACT: POST /referrals/{id}/unarchive
+        ASSERT: Referral is unarchived
+        """
+        # Arrange: Archive the referral first
+        test_referral.archived = True
+        test_referral.archived_at = datetime.now(timezone.utc)
+        db_session.commit()
+        
+        # Act
+        response = client.post(
+            f"/api/v1/organizations/{test_organization.id}/referrals/{test_referral.id}/unarchive"
+        )
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["archived"] is False
+        assert data["archived_at"] is None
+        
+        # Verify in database
+        db_session.refresh(test_referral)
+        assert test_referral.archived is False
+        assert test_referral.archived_at is None
+    
+    def test_archive_referral_not_found(
+        self,
+        client: TestClient,
+        test_organization,
+        test_admin_profile
+    ):
+        """
+        ARRANGE: Non-existent referral ID
+        ACT: POST /referrals/{id}/archive
+        ASSERT: Returns 404
+        """
+        # Act
+        fake_id = uuid.uuid4()
+        response = client.post(
+            f"/api/v1/organizations/{test_organization.id}/referrals/{fake_id}/archive"
+        )
+        
+        # Assert
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+    
+    def test_list_referrals_excludes_archived_by_default(
+        self,
+        client: TestClient,
+        test_organization,
+        test_admin_profile,
+        test_student_profile,
+        test_referral,
+        db_session
+    ):
+        """
+        ARRANGE: One archived and one active referral
+        ACT: GET /referrals (default)
+        ASSERT: Only active referral is returned
+        """
+        # Arrange: Create another referral and archive it
+        archived_referral = Referral(
+            organization_id=test_organization.id,
+            student_id=test_student_profile.id,
+            author_id=test_admin_profile.id,
+            status="CLOSED",
+            type="Behavior",
+            archived=True,
+            archived_at=datetime.now(timezone.utc)
+        )
+        db_session.add(archived_referral)
+        db_session.commit()
+        
+        # Act
+        response = client.get(
+            f"/api/v1/organizations/{test_organization.id}/referrals"
+        )
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1  # Only the active referral
+        assert len(data["referrals"]) == 1
+        assert data["referrals"][0]["id"] == str(test_referral.id)
+        assert data["referrals"][0]["archived"] is False
+    
+    def test_list_referrals_includes_archived_when_requested(
+        self,
+        client: TestClient,
+        test_organization,
+        test_admin_profile,
+        test_student_profile,
+        test_referral,
+        db_session
+    ):
+        """
+        ARRANGE: One archived and one active referral
+        ACT: GET /referrals?include_archived=true
+        ASSERT: Both referrals are returned
+        """
+        # Arrange: Create another referral and archive it
+        archived_referral = Referral(
+            organization_id=test_organization.id,
+            student_id=test_student_profile.id,
+            author_id=test_admin_profile.id,
+            status="CLOSED",
+            type="Behavior",
+            archived=True,
+            archived_at=datetime.now(timezone.utc)
+        )
+        db_session.add(archived_referral)
+        db_session.commit()
+        
+        # Act
+        response = client.get(
+            f"/api/v1/organizations/{test_organization.id}/referrals?include_archived=true"
+        )
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 2  # Both referrals
+        assert len(data["referrals"]) == 2
+        
+        # Verify one is archived and one is not
+        archived_ids = [r["id"] for r in data["referrals"] if r["archived"]]
+        active_ids = [r["id"] for r in data["referrals"] if not r["archived"]]
+        assert len(archived_ids) == 1
+        assert len(active_ids) == 1
+        assert str(archived_referral.id) in archived_ids
+        assert str(test_referral.id) in active_ids
+    
+    def test_archive_referral_updates_timestamp(
+        self,
+        client: TestClient,
+        test_organization,
+        test_admin_profile,
+        test_student_profile,
+        test_referral,
+        db_session
+    ):
+        """
+        ARRANGE: Existing referral
+        ACT: Archive and then unarchive referral
+        ASSERT: archived_at is set when archived, cleared when unarchived
+        """
+        # Act: Archive
+        response = client.post(
+            f"/api/v1/organizations/{test_organization.id}/referrals/{test_referral.id}/archive"
+        )
+        
+        # Assert: Archived
+        assert response.status_code == 200
+        data = response.json()
+        assert data["archived"] is True
+        assert data["archived_at"] is not None
+        
+        # Verify timestamp is recent (within last minute)
+        archived_at_str = data["archived_at"]
+        # Ensure timezone-aware datetime
+        if archived_at_str.endswith('Z'):
+            archived_at_str = archived_at_str.replace('Z', '+00:00')
+        archived_at = datetime.fromisoformat(archived_at_str)
+        # Ensure it's timezone-aware
+        if archived_at.tzinfo is None:
+            archived_at = archived_at.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        assert (now - archived_at).total_seconds() < 60
+        
+        # Act: Unarchive
+        response2 = client.post(
+            f"/api/v1/organizations/{test_organization.id}/referrals/{test_referral.id}/unarchive"
+        )
+        
+        # Assert: Unarchived
+        assert response2.status_code == 200
+        data2 = response2.json()
+        assert data2["archived"] is False
+        assert data2["archived_at"] is None
+
+
+# ============================================================================
 # TESTS: Intervention Endpoints
 # ============================================================================
 

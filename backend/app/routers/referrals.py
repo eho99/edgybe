@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func
 from typing import Optional, List
 import logging
+from datetime import datetime, timezone
 
 from .. import schemas, auth, models
 from ..db import get_db
@@ -61,36 +62,14 @@ async def get_referral_config(
                 detail="Invalid configuration format"
             )
     
-    # Log the config structure for debugging
-    logger.debug(f"Organization {org_id} preset_config structure: {type(config)}, keys: {list(config.keys()) if isinstance(config, dict) else 'not a dict'}")
-    
-    # Handle nested referral_config vs flat config
-    referral_config = None
-    if isinstance(config, dict):
-        if 'referral_config' in config:
-            referral_config = config['referral_config']
-            logger.debug(f"Found nested 'referral_config' key")
-        elif 'types' in config or 'locations' in config or 'behaviors' in config or 'referral_type' in config or 'observed_behaviors' in config:
-            # Assume flat structure if referral config keys exist directly
-            referral_config = config
-            logger.debug(f"Using flat config structure with keys: {list(config.keys())}")
-        else:
-            # Config exists but doesn't have referral config structure
-            logger.warning(f"Organization {org_id} preset_config exists but doesn't contain referral config. Keys: {list(config.keys())}")
-            # Return empty config structure instead of error
-            return schemas.ReferralConfigResponse(
-                types=[],
-                locations={"options": [], "label": "locations"},
-                time_of_day={"options": [], "label": "time_of_day"},
-                behaviors={"options": [], "label": "behaviors"},
-                common_interventions=[]
-            )
-    else:
+    # Use preset_config directly (no 'referral_config' nesting expected)
+    if not isinstance(config, dict):
         logger.error(f"Organization {org_id} preset_config is not a dict: {type(config)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Invalid referral configuration format: preset_config must be a dictionary"
         )
+    referral_config = config
 
     if not referral_config or not isinstance(referral_config, dict):
         raise HTTPException(
@@ -243,12 +222,14 @@ async def list_referrals(
     status: Optional[str] = None,
     type: Optional[str] = None,
     author_id: Optional[UUID4] = None,
+    include_archived: bool = Query(False, description="Include archived referrals in results"),
     db: Session = Depends(get_db),
     member: schemas.AuthenticatedMember = Depends(auth.get_current_active_member)
 ):
     """
     List referrals with pagination and filters.
     Admin/Secretary see all, Staff see only their own.
+    By default, archived referrals are excluded. Set include_archived=true to include them.
     """
     query = db.query(models.Referral).filter(
         models.Referral.organization_id == org_id
@@ -257,6 +238,12 @@ async def list_referrals(
     # Role-based filtering: staff only see their own referrals
     if member.role == models.OrgRole.staff:
         query = query.filter(models.Referral.author_id == member.user.id)
+    
+    # Filter out archived referrals by default
+    # IMPORTANT: This requires the migration 'add_referral_archiving' (f8a9b0c1d2e3) to be run
+    # Run: alembic upgrade head
+    if not include_archived:
+        query = query.filter(models.Referral.archived.is_(False))
     
     # Apply filters
     if student_id:
@@ -402,6 +389,136 @@ async def update_referral(
     db.refresh(referral)
     
     # Fetch related data
+    student = db.query(models.Profile).filter(models.Profile.id == referral.student_id).first()
+    author = db.query(models.Profile).filter(models.Profile.id == referral.author_id).first()
+    
+    # Fetch interventions
+    interventions = db.query(models.Intervention).filter(
+        models.Intervention.referral_id == referral_id
+    ).all()
+    
+    intervention_responses = []
+    for intervention in interventions:
+        creator = db.query(models.Profile).filter(models.Profile.id == intervention.created_by).first()
+        intervention_responses.append(schemas.InterventionResponse(
+            **intervention.__dict__,
+            creator_name=creator.full_name if creator else None
+        ))
+    
+    return schemas.ReferralResponse(
+        **referral.__dict__,
+        student_name=student.full_name if student else None,
+        student_student_id=student.student_id if student else None,
+        student_grade_level=student.grade_level if student else None,
+        author_name=author.full_name if author else None,
+        interventions=intervention_responses
+    )
+
+
+@router.post("/referrals/{referral_id}/archive", response_model=schemas.ReferralResponse)
+async def archive_referral(
+    org_id: UUID4,
+    referral_id: UUID4,
+    db: Session = Depends(get_db),
+    member: schemas.AuthenticatedMember = Depends(auth.get_current_active_member)
+):
+    """
+    Archive a referral (soft delete).
+    Admin/Secretary can archive any, Staff can archive only their own.
+    """
+    referral = db.query(models.Referral).filter(
+        and_(
+            models.Referral.id == referral_id,
+            models.Referral.organization_id == org_id
+        )
+    ).first()
+    
+    if not referral:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Referral not found"
+        )
+    
+    # Check permissions
+    if member.role == models.OrgRole.staff and referral.author_id != member.user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to archive this referral"
+        )
+    
+    # Archive the referral
+    referral.archived = True
+    referral.archived_at = datetime.now(timezone.utc)
+    
+    db.commit()
+    db.refresh(referral)
+    
+    # Fetch related data for response
+    student = db.query(models.Profile).filter(models.Profile.id == referral.student_id).first()
+    author = db.query(models.Profile).filter(models.Profile.id == referral.author_id).first()
+    
+    # Fetch interventions
+    interventions = db.query(models.Intervention).filter(
+        models.Intervention.referral_id == referral_id
+    ).all()
+    
+    intervention_responses = []
+    for intervention in interventions:
+        creator = db.query(models.Profile).filter(models.Profile.id == intervention.created_by).first()
+        intervention_responses.append(schemas.InterventionResponse(
+            **intervention.__dict__,
+            creator_name=creator.full_name if creator else None
+        ))
+    
+    return schemas.ReferralResponse(
+        **referral.__dict__,
+        student_name=student.full_name if student else None,
+        student_student_id=student.student_id if student else None,
+        student_grade_level=student.grade_level if student else None,
+        author_name=author.full_name if author else None,
+        interventions=intervention_responses
+    )
+
+
+@router.post("/referrals/{referral_id}/unarchive", response_model=schemas.ReferralResponse)
+async def unarchive_referral(
+    org_id: UUID4,
+    referral_id: UUID4,
+    db: Session = Depends(get_db),
+    member: schemas.AuthenticatedMember = Depends(auth.get_current_active_member)
+):
+    """
+    Unarchive a referral (restore from archive).
+    Admin/Secretary can unarchive any, Staff can unarchive only their own.
+    """
+    referral = db.query(models.Referral).filter(
+        and_(
+            models.Referral.id == referral_id,
+            models.Referral.organization_id == org_id
+        )
+    ).first()
+    
+    if not referral:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Referral not found"
+        )
+    
+    # Check permissions
+    if member.role == models.OrgRole.staff and referral.author_id != member.user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to unarchive this referral"
+        )
+    
+    # Unarchive the referral
+    referral.archived = False
+    referral.archived_at = None
+    
+    db.commit()
+    db.refresh(referral)
+    
+    # Fetch related data for response
     student = db.query(models.Profile).filter(models.Profile.id == referral.student_id).first()
     author = db.query(models.Profile).filter(models.Profile.id == referral.author_id).first()
     

@@ -11,18 +11,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/hooks/useToast'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { Loader } from '@/components/ui/loader'
-import apiClient from '@/lib/apiClient'
+import { StudentSearchSelect } from '@/components/ui/StudentSearchSelect'
 
 interface CreateReferralFormProps {
   orgId: string
   onSuccess?: (referralId: string) => void
-}
-
-interface StudentOption {
-  id: string
-  full_name: string
-  student_id: string
-  grade_level: string
 }
 
 export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps) {
@@ -30,8 +23,6 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
   const { toast } = useToast()
   const { handleError } = useErrorHandler()
 
-  const [students, setStudents] = useState<StudentOption[]>([])
-  const [loadingStudents, setLoadingStudents] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Form state
@@ -46,39 +37,6 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
     description: '',
   })
 
-  // Fetch students (with pagination to get all students)
-  useEffect(() => {
-    async function fetchAllStudents() {
-      try {
-        let allStudents: StudentOption[] = []
-        let page = 1
-        let hasMore = true
-        const perPage = 100 // Backend max limit
-
-        while (hasMore) {
-          const response = await apiClient<{
-            profiles: StudentOption[]
-            total_pages: number
-          }>(`/api/v1/organizations/${orgId}/students?page=${page}&per_page=${perPage}`)
-          
-          const profiles = response.profiles || []
-          allStudents = [...allStudents, ...profiles]
-          
-          // Check if there are more pages
-          hasMore = page < (response.total_pages || 1)
-          page++
-        }
-
-        setStudents(allStudents)
-      } catch (err) {
-        console.error('Failed to fetch students:', err)
-        handleError(err, { title: 'Failed to load students' })
-      } finally {
-        setLoadingStudents(false)
-      }
-    }
-    fetchAllStudents()
-  }, [orgId, handleError])
 
   const handleBehaviorToggle = (behavior: string) => {
     setFormData((prev) => ({
@@ -170,7 +128,7 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
     }
   }
 
-  if (configLoading || loadingStudents) {
+  if (configLoading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
@@ -222,34 +180,15 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Student Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="student_id">Student *</Label>
-            <Select
-              value={formData.student_id}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, student_id: value }))
-              }
-            >
-              <SelectTrigger id="student_id">
-                <SelectValue placeholder="Select a student" />
-              </SelectTrigger>
-              <SelectContent>
-                {students.length === 0 ? (
-                  <div className="px-2 py-1 text-sm text-muted-foreground">
-                    No students found
-                  </div>
-                ) : (
-                  students.map((student) => (
-                    <SelectItem key={student.id} value={student.id}>
-                      {student.full_name || 'Unknown'} 
-                      {student.student_id ? ` - ${student.student_id}` : ''}
-                      {student.grade_level ? ` (Grade ${student.grade_level})` : ''}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+          <StudentSearchSelect
+            orgId={orgId}
+            value={formData.student_id}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, student_id: value }))
+            }
+            label="Student"
+            required
+          />
 
           {/* Referral Type */}
           <div className="space-y-2">

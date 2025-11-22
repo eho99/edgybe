@@ -72,6 +72,8 @@ class ReferralResponse(BaseModel):
     time_of_day: Optional[str] = None
     behaviors: Optional[List[str]] = None
     description: Optional[str] = None
+    archived: bool = False
+    archived_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     
@@ -95,6 +97,8 @@ class ReferralListItem(BaseModel):
     type: str
     location: Optional[str] = None
     time_of_day: Optional[str] = None
+    archived: bool = False
+    archived_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     

@@ -68,8 +68,13 @@ async def list_students(
     per_page: int = Query(10, ge=1, le=100),
     search: str | None = Query(None),
     db: Session = Depends(get_db),
-    admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role),
+    member: schemas.AuthenticatedMember = Depends(auth.require_active_role),
 ):
+    """
+    List students in the organization with optional search.
+    Admin, Secretary, and Staff can access this endpoint.
+    Search supports filtering by name, student_id, phone, or city.
+    """
     return _list_profiles(
         db=db,
         org_id=org_id,

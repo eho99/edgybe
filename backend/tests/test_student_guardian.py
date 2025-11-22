@@ -880,12 +880,251 @@ def test_duplicate_student_id_prevention(client: TestClient, db_session):
 
 
 def test_list_students_endpoint(client: TestClient):
+    """Test listing students without search"""
     url = f"/api/v1/organizations/{mock_org_uuid}/students"
     response = client.get(url)
     assert response.status_code == 200
     data = response.json()
     assert data["total"] >= 1
     assert len(data["profiles"]) >= 1
+
+
+def test_list_students_with_search_by_name(client: TestClient, db_session):
+    """Test searching students by name"""
+    # Create additional student with specific name
+    search_student_id = uuid.uuid4()
+    search_student_profile = Profile(
+        id=search_student_id,
+        full_name="John Searchable",
+        grade_level="10",
+        student_id="STU_SEARCH_001",
+        is_active=True
+    )
+    db_session.add(search_student_profile)
+    
+    search_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=search_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(search_student_member)
+    db_session.commit()
+    
+    # Search by name
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=Searchable"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    # Should find our searchable student
+    found_student = any(p["id"] == str(search_student_id) for p in data["profiles"])
+    assert found_student, f"Expected to find student {search_student_id} in search results"
+
+
+def test_list_students_with_search_by_student_id(client: TestClient, db_session):
+    """Test searching students by student_id"""
+    # Create additional student with specific student_id
+    search_student_id = uuid.uuid4()
+    search_student_profile = Profile(
+        id=search_student_id,
+        full_name="Test Student",
+        grade_level="11",
+        student_id="STU_SEARCH_002",
+        is_active=True
+    )
+    db_session.add(search_student_profile)
+    
+    search_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=search_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(search_student_member)
+    db_session.commit()
+    
+    # Search by student_id
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=STU_SEARCH_002"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    # Should find our searchable student
+    found_student = any(p["id"] == str(search_student_id) for p in data["profiles"])
+    assert found_student, f"Expected to find student {search_student_id} in search results"
+    # Verify the student_id matches
+    student = next(p for p in data["profiles"] if p["id"] == str(search_student_id))
+    assert student["student_id"] == "STU_SEARCH_002"
+
+
+def test_list_students_search_case_insensitive(client: TestClient, db_session):
+    """Test that search is case-insensitive"""
+    # Create student with mixed case name
+    search_student_id = uuid.uuid4()
+    search_student_profile = Profile(
+        id=search_student_id,
+        full_name="Jane Doe",
+        grade_level="9",
+        student_id="STU_CASE_001",
+        is_active=True
+    )
+    db_session.add(search_student_profile)
+    
+    search_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=search_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(search_student_member)
+    db_session.commit()
+    
+    # Search with lowercase
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=jane"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    found_student = any(p["id"] == str(search_student_id) for p in data["profiles"])
+    assert found_student, "Case-insensitive search should find 'Jane Doe' when searching 'jane'"
+
+
+def test_list_students_search_partial_match(client: TestClient, db_session):
+    """Test that search supports partial matching"""
+    # Create student
+    search_student_id = uuid.uuid4()
+    search_student_profile = Profile(
+        id=search_student_id,
+        full_name="Alice Smith",
+        grade_level="8",
+        student_id="STU_PARTIAL_001",
+        is_active=True
+    )
+    db_session.add(search_student_profile)
+    
+    search_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=search_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(search_student_member)
+    db_session.commit()
+    
+    # Search with partial name
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=lice"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    found_student = any(p["id"] == str(search_student_id) for p in data["profiles"])
+    assert found_student, "Partial search should find 'Alice Smith' when searching 'lice'"
+
+
+def test_list_students_search_no_results(client: TestClient):
+    """Test search with no matching results"""
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=NonexistentStudent12345"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 0
+    assert len(data["profiles"]) == 0
+
+
+def test_list_students_search_with_pagination(client: TestClient, db_session):
+    """Test search with pagination"""
+    # Create multiple students with searchable names
+    student_ids = []
+    for i in range(5):
+        student_id = uuid.uuid4()
+        student_profile = Profile(
+            id=student_id,
+            full_name=f"Searchable Student {i}",
+            grade_level="9",
+            student_id=f"STU_PAGE_{i:03d}",
+            is_active=True
+        )
+        db_session.add(student_profile)
+        
+        student_member = OrganizationMember(
+            organization_id=mock_org_uuid,
+            user_id=student_id,
+            role=OrgRole.student,
+            status=MemberStatus.active
+        )
+        db_session.add(student_member)
+        student_ids.append(student_id)
+    
+    db_session.commit()
+    
+    # Search and get first page
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=Searchable&page=1&per_page=2"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 5  # At least our 5 students
+    assert len(data["profiles"]) == 2  # Per page limit
+    assert data["page"] == 1
+    assert data["per_page"] == 2
+    assert data["total_pages"] >= 3  # At least 3 pages with 2 per page
+
+
+def test_list_students_staff_can_access(client: TestClient, db_session):
+    """Test that staff members can access the students endpoint"""
+    # Create a staff member
+    staff_user_id = uuid.uuid4()
+    staff_profile = Profile(
+        id=staff_user_id,
+        full_name="Staff User",
+        is_active=True
+    )
+    db_session.add(staff_profile)
+    
+    staff_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=staff_user_id,
+        role=OrgRole.staff,
+        status=MemberStatus.active
+    )
+    db_session.add(staff_member)
+    db_session.commit()
+    
+    # Override auth to return staff member
+    from app.main import app
+    from app.auth import get_current_active_member, require_active_role
+    from app import schemas
+    from fastapi import Request
+    
+    async def override_get_current_active_member_staff(
+        request: Request,
+        org_id,
+        db,
+        user
+    ):
+        return schemas.AuthenticatedMember(
+            user=schemas.SupabaseUser(id=staff_user_id, email="staff@example.com"),
+            org_id=mock_org_uuid,
+            role=OrgRole.staff
+        )
+    
+    app.dependency_overrides[get_current_active_member] = override_get_current_active_member_staff
+    app.dependency_overrides[require_active_role] = override_get_current_active_member_staff
+    
+    try:
+        url = f"/api/v1/organizations/{mock_org_uuid}/students"
+        response = client.get(url)
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "profiles" in data
+    finally:
+        # Clean up overrides
+        app.dependency_overrides.clear()
 
 
 def test_update_student_profile(client: TestClient, db_session):

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useReferral, downloadReferralPDF } from '@/hooks/useReferrals'
+import { useReferral, downloadReferralPDF, archiveReferral, unarchiveReferral } from '@/hooks/useReferrals'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -10,7 +10,7 @@ import { InterventionForm } from './InterventionForm'
 import { EmailReferralModal } from './EmailReferralModal'
 import { useToast } from '@/hooks/useToast'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { Download, Mail, Plus, Edit } from 'lucide-react'
+import { Download, Mail, Plus, Edit, Archive, ArchiveRestore } from 'lucide-react'
 
 interface ReferralDetailProps {
   orgId: string
@@ -67,6 +67,34 @@ export function ReferralDetail({ orgId, referralId }: ReferralDetailProps) {
     }
   }
 
+  const handleArchive = async () => {
+    try {
+      await archiveReferral(orgId, referralId)
+      toast({
+        variant: 'success',
+        title: 'Referral Archived',
+        description: 'The referral has been archived successfully',
+      })
+      mutate() // Refresh the referral data
+    } catch (err) {
+      handleError(err, { title: 'Failed to archive referral' })
+    }
+  }
+
+  const handleUnarchive = async () => {
+    try {
+      await unarchiveReferral(orgId, referralId)
+      toast({
+        variant: 'success',
+        title: 'Referral Unarchived',
+        description: 'The referral has been restored successfully',
+      })
+      mutate() // Refresh the referral data
+    } catch (err) {
+      handleError(err, { title: 'Failed to unarchive referral' })
+    }
+  }
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A'
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -103,14 +131,41 @@ export function ReferralDetail({ orgId, referralId }: ReferralDetailProps) {
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle className="text-2xl">
-                Referral for {referral.student_name}
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-2xl">
+                  Referral for {referral.student_name}
+                </CardTitle>
+                {referral.archived && (
+                  <Badge variant="outline">Archived</Badge>
+                )}
+              </div>
               <CardDescription>
                 Created {formatDate(referral.created_at)} by {referral.author_name}
+                {referral.archived_at && (
+                  <> • Archived {formatDate(referral.archived_at)}</>
+                )}
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              {referral.archived ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUnarchive}
+                >
+                  <ArchiveRestore className="mr-2 h-4 w-4" />
+                  Unarchive
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleArchive}
+                >
+                  <Archive className="mr-2 h-4 w-4" />
+                  Archive
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
