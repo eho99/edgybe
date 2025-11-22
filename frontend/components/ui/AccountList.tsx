@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
-import { Spinner } from '@/components/ui/spinner'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { useToast } from '@/hooks/useToast'
+import { Loader } from '@/components/ui/loader'
 import {
   Select,
   SelectContent,
@@ -60,6 +62,8 @@ export function AccountList({ orgId }: AccountListProps) {
   const [total, setTotal] = useState(0)
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const { handleError } = useErrorHandler()
+  const { toast } = useToast()
 
   const fetchAccounts = async () => {
     try {
@@ -80,8 +84,10 @@ export function AccountList({ orgId }: AccountListProps) {
       setAccounts(response.accounts)
       setTotalPages(response.total_pages)
       setTotal(response.total)
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch accounts')
+      setError(null)
+    } catch (err) {
+      const handled = handleError(err, { title: "Failed to fetch accounts", showToast: false })
+      setError(handled.userMessage)
     } finally {
       setLoading(false)
     }
@@ -100,10 +106,15 @@ export function AccountList({ orgId }: AccountListProps) {
       await apiClient(`/api/v1/organizations/${orgId}/members/${account.id}`, {
         method: 'DELETE'
       })
+      toast({
+        variant: "success",
+        title: "Account deleted",
+        description: `The account for ${getDisplayEmail(account)} has been deleted.`,
+      })
       setAccountToDelete(null)
       await fetchAccounts() // Refresh the list
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete account')
+    } catch (err) {
+      handleError(err, { title: "Failed to delete account" })
     } finally {
       setDeleting(false)
     }
@@ -146,8 +157,7 @@ export function AccountList({ orgId }: AccountListProps) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
-          <Spinner className="w-6 h-6" />
-          <span className="ml-2">Loading accounts...</span>
+          <Loader size="md" text="Loading accounts..." />
         </CardContent>
       </Card>
     )
@@ -241,7 +251,7 @@ export function AccountList({ orgId }: AccountListProps) {
                           className="text-red-600 hover:text-red-700"
                         >
                           {deleting && accountToDelete?.id === account.id ? (
-                            <Spinner className="w-4 h-4" />
+                            <Loader size="sm" />
                           ) : (
                             <Trash2 className="w-4 h-4" />
                           )}

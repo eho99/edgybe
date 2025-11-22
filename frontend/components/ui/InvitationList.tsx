@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
-import { Spinner } from '@/components/ui/spinner'
 import { 
   Select, 
   SelectContent, 
@@ -30,6 +29,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { MoreHorizontal, Search, RefreshCw, Mail, X } from 'lucide-react'
 import apiClient from '@/lib/apiClient'
+import { useErrorHandler } from '@/hooks/useErrorHandler'
+import { useToast } from '@/hooks/useToast'
+import { Loader } from '@/components/ui/loader'
 
 interface Invitation {
   id: string
@@ -72,6 +74,8 @@ export function InvitationList({ orgId }: InvitationListProps) {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const { handleError } = useErrorHandler()
+  const { toast } = useToast()
 
   const fetchInvitations = async () => {
     try {
@@ -94,8 +98,10 @@ export function InvitationList({ orgId }: InvitationListProps) {
       setTotalPages(invitationsResponse.total_pages)
       setTotal(invitationsResponse.total)
       setStats(statsResponse)
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch invitations')
+      setError(null)
+    } catch (err) {
+      const handled = handleError(err, { title: "Failed to fetch invitations", showToast: false })
+      setError(handled.userMessage)
     } finally {
       setLoading(false)
     }
@@ -106,9 +112,14 @@ export function InvitationList({ orgId }: InvitationListProps) {
       await apiClient(`/api/v1/organizations/${orgId}/invitations/${invitationId}/resend`, {
         method: 'POST'
       })
+      toast({
+        variant: "success",
+        title: "Invitation resent",
+        description: "The invitation has been resent successfully.",
+      })
       await fetchInvitations() // Refresh the list
-    } catch (err: any) {
-      setError(err.message || 'Failed to resend invitation')
+    } catch (err) {
+      handleError(err, { title: "Failed to resend invitation" })
     }
   }
 
@@ -117,9 +128,14 @@ export function InvitationList({ orgId }: InvitationListProps) {
       await apiClient(`/api/v1/organizations/${orgId}/invitations/${invitationId}`, {
         method: 'DELETE'
       })
+      toast({
+        variant: "success",
+        title: "Invitation cancelled",
+        description: "The invitation has been cancelled successfully.",
+      })
       await fetchInvitations() // Refresh the list
-    } catch (err: any) {
-      setError(err.message || 'Failed to cancel invitation')
+    } catch (err) {
+      handleError(err, { title: "Failed to cancel invitation" })
     }
   }
 
@@ -167,8 +183,7 @@ export function InvitationList({ orgId }: InvitationListProps) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
-          <Spinner className="w-6 h-6" />
-          <span className="ml-2">Loading invitations...</span>
+          <Loader size="md" text="Loading invitations..." />
         </CardContent>
       </Card>
     )

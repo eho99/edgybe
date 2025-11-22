@@ -355,6 +355,8 @@ def test_create_student_profile(client: TestClient, db_session):
     """Test creating a single student profile"""
     student_data = {
         "full_name": "New Student",
+        "grade_level": "9",
+        "student_id": "STU100",
         "email": "newstudent@example.com"
     }
     url = f"/api/v1/organizations/{mock_org_uuid}/students"
@@ -363,6 +365,8 @@ def test_create_student_profile(client: TestClient, db_session):
     assert response.status_code == 200
     data = response.json()
     assert data["full_name"] == "New Student"
+    assert data["grade_level"] == "9"
+    assert data["student_id"] == "STU100"
     assert "id" in data
     
     # Verify profile exists in DB
@@ -370,6 +374,8 @@ def test_create_student_profile(client: TestClient, db_session):
     profile = db_session.query(Profile).filter(Profile.id == profile_id).first()
     assert profile is not None
     assert profile.full_name == "New Student"
+    assert profile.grade_level == "9"
+    assert profile.student_id == "STU100"
     
     # Verify organization membership exists
     member = db_session.query(OrganizationMember).filter(
@@ -408,10 +414,52 @@ def test_create_guardian_profile(client: TestClient, db_session):
     assert member.role == OrgRole.guardian
 
 
+def test_create_guardian_profile_missing_email(client: TestClient, db_session):
+    """Test that creating a guardian without email fails"""
+    guardian_data = {
+        "full_name": "Guardian No Email"
+    }
+    url = f"/api/v1/organizations/{mock_org_uuid}/guardians"
+    response = client.post(url, json=guardian_data)
+    assert response.status_code == 422  # Validation error
+
+
+def test_create_guardian_profile_with_optional_fields(client: TestClient, db_session):
+    """Test creating a guardian profile with all optional fields"""
+    guardian_data = {
+        "full_name": "Guardian With All Fields",
+        "email": "guardian@example.com",
+        "phone": "+14155555678",
+        "street_number": "456",
+        "street_name": "Oak Ave",
+        "city": "Chicago",
+        "state": "IL",
+        "zip_code": "60601",
+        "country": "USA",
+        "preferred_language": "es"
+    }
+    url = f"/api/v1/organizations/{mock_org_uuid}/guardians"
+    response = client.post(url, json=guardian_data)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["full_name"] == "Guardian With All Fields"
+    assert data["phone"] == "tel:+1-415-555-5678"
+    assert data["street_number"] == "456"
+    assert data["street_name"] == "Oak Ave"
+    assert data["city"] == "Chicago"
+    assert data["state"] == "IL"
+    assert data["zip_code"] == "60601"
+    assert data["country"] == "USA"
+    assert data["preferred_language"] == "es"
+
+
 def test_create_student_profile_no_email(client: TestClient, db_session):
-    """Test creating a student profile without email"""
+    """Test creating a student profile without email (email is optional for students)"""
     student_data = {
-        "full_name": "Student No Email"
+        "full_name": "Student No Email",
+        "grade_level": "10",
+        "student_id": "STU101"
     }
     url = f"/api/v1/organizations/{mock_org_uuid}/students"
     response = client.post(url, json=student_data)
@@ -419,15 +467,71 @@ def test_create_student_profile_no_email(client: TestClient, db_session):
     assert response.status_code == 200
     data = response.json()
     assert data["full_name"] == "Student No Email"
+    assert data["grade_level"] == "10"
+    assert data["student_id"] == "STU101"
+
+
+def test_create_student_profile_missing_required_fields(client: TestClient, db_session):
+    """Test that creating a student without required fields fails"""
+    # Missing grade_level
+    student_data = {
+        "full_name": "Student Missing Grade",
+        "student_id": "STU102"
+    }
+    url = f"/api/v1/organizations/{mock_org_uuid}/students"
+    response = client.post(url, json=student_data)
+    assert response.status_code == 422  # Validation error
+    
+    # Missing student_id
+    student_data = {
+        "full_name": "Student Missing ID",
+        "grade_level": "11"
+    }
+    response = client.post(url, json=student_data)
+    assert response.status_code == 422  # Validation error
+
+
+def test_create_student_profile_with_optional_fields(client: TestClient, db_session):
+    """Test creating a student profile with all optional fields"""
+    student_data = {
+        "full_name": "Student With All Fields",
+        "grade_level": "8",
+        "student_id": "STU103",
+        "email": "student@example.com",
+        "phone": "+14155555678",
+        "street_number": "123",
+        "street_name": "Main St",
+        "city": "Springfield",
+        "state": "IL",
+        "zip_code": "62701",
+        "country": "USA",
+        "preferred_language": "en"
+    }
+    url = f"/api/v1/organizations/{mock_org_uuid}/students"
+    response = client.post(url, json=student_data)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["full_name"] == "Student With All Fields"
+    assert data["grade_level"] == "8"
+    assert data["student_id"] == "STU103"
+    assert data["phone"] == "tel:+1-415-555-5678"
+    assert data["street_number"] == "123"
+    assert data["street_name"] == "Main St"
+    assert data["city"] == "Springfield"
+    assert data["state"] == "IL"
+    assert data["zip_code"] == "62701"
+    assert data["country"] == "USA"
+    assert data["preferred_language"] == "en"
 
 
 def test_bulk_create_students(client: TestClient, db_session):
     """Test bulk creating student profiles"""
     students_data = {
         "students": [
-            {"full_name": "Student 1", "email": "s1@example.com"},
-            {"full_name": "Student 2", "email": "s2@example.com"},
-            {"full_name": "Student 3"}
+            {"full_name": "Student 1", "grade_level": "9", "student_id": "STU200", "email": "s1@example.com"},
+            {"full_name": "Student 2", "grade_level": "10", "student_id": "STU201", "email": "s2@example.com"},
+            {"full_name": "Student 3", "grade_level": "11", "student_id": "STU202"}
         ]
     }
     url = f"/api/v1/organizations/{mock_org_uuid}/students/bulk"
@@ -443,6 +547,8 @@ def test_bulk_create_students(client: TestClient, db_session):
         profile_id = uuid.UUID(profile_data["id"])
         profile = db_session.query(Profile).filter(Profile.id == profile_id).first()
         assert profile is not None
+        assert profile.grade_level is not None
+        assert profile.student_id is not None
         member = db_session.query(OrganizationMember).filter(
             OrganizationMember.user_id == profile_id,
             OrganizationMember.organization_id == mock_org_uuid
@@ -466,6 +572,12 @@ def test_bulk_create_guardians(client: TestClient, db_session):
     data = response.json()
     assert data["created"] == 2
     assert len(data["profiles"]) == 2
+    
+    # Verify all profiles have email
+    for profile_data in data["profiles"]:
+        profile_id = uuid.UUID(profile_data["id"])
+        profile = db_session.query(Profile).filter(Profile.id == profile_id).first()
+        assert profile is not None
 
 
 def test_bulk_create_and_link_pairs(client: TestClient, db_session):
@@ -473,12 +585,12 @@ def test_bulk_create_and_link_pairs(client: TestClient, db_session):
     pairs_data = {
         "pairs": [
             {
-                "student": {"full_name": "Student A", "email": "sa@example.com"},
+                "student": {"full_name": "Student A", "grade_level": "9", "student_id": "STU300", "email": "sa@example.com"},
                 "guardian": {"full_name": "Guardian A", "email": "ga@example.com"},
                 "relationship_type": "primary"
             },
             {
-                "student": {"full_name": "Student B", "email": "sb@example.com"},
+                "student": {"full_name": "Student B", "grade_level": "10", "student_id": "STU301", "email": "sb@example.com"},
                 "guardian": {"full_name": "Guardian B", "email": "gb@example.com"},
                 "relationship_type": "secondary"
             }
@@ -517,14 +629,21 @@ def test_bulk_create_and_link_pairs(client: TestClient, db_session):
 def test_create_student_then_link(client: TestClient, db_session):
     """Test creating student and guardian separately, then linking"""
     # Create student
-    student_data = {"full_name": "Test Student"}
+    student_data = {
+        "full_name": "Test Student",
+        "grade_level": "12",
+        "student_id": "STU400"
+    }
     student_url = f"/api/v1/organizations/{mock_org_uuid}/students"
     student_response = client.post(student_url, json=student_data)
     assert student_response.status_code == 200
     student_id = student_response.json()["id"]
     
     # Create guardian
-    guardian_data = {"full_name": "Test Guardian"}
+    guardian_data = {
+        "full_name": "Test Guardian",
+        "email": "testguardian@example.com"
+    }
     guardian_url = f"/api/v1/organizations/{mock_org_uuid}/guardians"
     guardian_response = client.post(guardian_url, json=guardian_data)
     assert guardian_response.status_code == 200
@@ -560,24 +679,11 @@ def test_duplicate_profile_prevention(client: TestClient, db_session):
     db_session.commit()
     
     # Try to create with same ID
-    student_data = {"full_name": "New Student"}
+    student_data = {"full_name": "Existing", "grade_level": "11", "student_id": "STU003"}
     url = f"/api/v1/organizations/{mock_org_uuid}/students"
-    
-    # This should fail, but since we auto-generate IDs, we can't easily test this
-    # Instead, test that duplicate organization membership is prevented
-    # by creating a student, then trying to create another with same name in same org
-    # Actually, the current implementation allows this - profiles can have same name
-    # Let's test that we can't create duplicate membership instead
-    
-    # Create student first time
-    response1 = client.post(url, json=student_data)
-    assert response1.status_code == 200
-    student_id = response1.json()["id"]
-    
-    # Try to create another student with same ID (would need to pass profile_id)
-    # Since we don't expose profile_id in the API, this is hard to test
-    # But we can verify the system works correctly by checking the created profile is unique
-    assert student_id != existing_id
+    response = client.post(url, json=student_data)
+    assert response.status_code == 400
+    assert "already exists" in response.json().get("detail", "").lower()
 
 
 def test_bulk_create_with_some_failures(client: TestClient, db_session):
@@ -586,8 +692,8 @@ def test_bulk_create_with_some_failures(client: TestClient, db_session):
     # For now, just verify bulk operations work with valid data
     students_data = {
         "students": [
-            {"full_name": "Valid Student 1"},
-            {"full_name": "Valid Student 2"}
+            {"full_name": "Valid Student 1", "grade_level": "9", "student_id": "STU500"},
+            {"full_name": "Valid Student 2", "grade_level": "10", "student_id": "STU501"}
         ]
     }
     url = f"/api/v1/organizations/{mock_org_uuid}/students/bulk"
@@ -595,3 +701,62 @@ def test_bulk_create_with_some_failures(client: TestClient, db_session):
     
     assert response.status_code == 200
     assert response.json()["created"] == 2
+
+
+def test_duplicate_student_id_prevention(client: TestClient, db_session):
+    """Test that duplicate student_id values are prevented"""
+    student_data = {
+        "full_name": "First Student",
+        "grade_level": "9",
+        "student_id": "STU600"
+    }
+    url = f"/api/v1/organizations/{mock_org_uuid}/students"
+    
+    # Create first student
+    response1 = client.post(url, json=student_data)
+    assert response1.status_code == 200
+    
+    # Try to create another student with same student_id
+    student_data["full_name"] = "Second Student"
+    response2 = client.post(url, json=student_data)
+    assert response2.status_code == 400
+    assert "student_id" in response2.json()["detail"].lower()
+
+
+def test_list_students_endpoint(client: TestClient):
+    url = f"/api/v1/organizations/{mock_org_uuid}/students"
+    response = client.get(url)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    assert len(data["profiles"]) >= 1
+
+
+def test_update_student_profile(client: TestClient, db_session):
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}"
+    payload = {
+        "full_name": "Updated Student",
+        "phone": "+14155550000",
+        "city": "Updated City"
+    }
+    response = client.patch(url, json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["full_name"] == "Updated Student"
+    assert data["phone"] == "tel:+1-415-555-0000"
+    assert data["city"] == "Updated City"
+
+
+def test_update_guardian_profile(client: TestClient, db_session):
+    url = f"/api/v1/organizations/{mock_org_uuid}/guardians/{mock_guardian_uuid}"
+    payload = {
+        "full_name": "Updated Guardian",
+        "phone": "+14155550001",
+        "country": "USA"
+    }
+    response = client.patch(url, json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["full_name"] == "Updated Guardian"
+    assert data["phone"] == "tel:+1-415-555-0001"
+    assert data["country"] == "USA"

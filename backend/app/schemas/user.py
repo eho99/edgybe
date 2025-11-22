@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, UUID4, Field, field_validator
+from pydantic import BaseModel, EmailStr, UUID4, Field, field_validator, ConfigDict
 from typing import Optional
 from datetime import datetime
 from pydantic_extra_types.phone_numbers import PhoneNumber
@@ -26,6 +26,7 @@ class BulkInviteResponse(BaseModel):
     failed_count: int
 
 class ProfileSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: UUID4
     full_name: str | None
     has_completed_profile: bool = Field(default=False)
@@ -42,9 +43,6 @@ class ProfileSchema(BaseModel):
     is_active: bool = Field(default=True)
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
-    
     @field_validator('has_completed_profile', mode='before')
     @classmethod
     def handle_none_has_completed_profile(cls, v):

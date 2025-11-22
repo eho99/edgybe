@@ -5,7 +5,6 @@ from pydantic_extra_types.phone_numbers import PhoneNumber
 
 class OrganizationBase(BaseModel):
     name: str
-    district_id: Optional[UUID4] = None
     street_number: Optional[str] = None
     street_name: Optional[str] = None
     city: Optional[str] = None
@@ -38,7 +37,6 @@ class OrganizationCreate(OrganizationBase):
 class OrganizationUpdate(BaseModel):
     """Schema for updating organization - all fields optional."""
     name: Optional[str] = None
-    district_id: Optional[UUID4] = None
     street_number: Optional[str] = None
     street_name: Optional[str] = None
     city: Optional[str] = None
@@ -67,6 +65,7 @@ class OrganizationUpdate(BaseModel):
 
 class Organization(OrganizationBase):
     id: UUID4
+    district_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
