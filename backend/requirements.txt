@@ -12,3 +12,6 @@ pydantic-extra-types
 python-jose[cryptography]
 pytest
 pytest-asyncio
+resend
+weasyprint
+jinja2

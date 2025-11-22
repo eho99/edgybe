@@ -6,3 +6,5 @@ from .member import *
 from .student_guardian import * 
 from .invitation import *
 from .account import *
+from .referral import *
+from .email_template import *

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.security import HTTPBearer
-from .routers import organizations, users, members, student_guardian, invitations
+from .routers import organizations, users, members, student_guardian, invitations, referrals
 from .db import Base, engine
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -48,6 +48,7 @@ app.include_router(users.public_router)
 app.include_router(members.router)
 app.include_router(student_guardian.router)
 app.include_router(invitations.router)
+app.include_router(referrals.router)
 
 @app.get("/api/health")
 def health_check():
