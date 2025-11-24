@@ -1,4 +1,4 @@
-from pydantic import BaseModel, UUID4, EmailStr, Field, field_validator
+from pydantic import BaseModel, UUID4, EmailStr, Field, field_validator, ConfigDict
 from typing import Optional
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from ..models.student_guardian import GuardianRelationType
@@ -10,16 +10,15 @@ class GuardianLinkRequest(BaseModel):
     relationship_type: GuardianRelationType = GuardianRelationType.primary
 
 class GuardianLinkResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: UUID4
     organization_id: UUID4
     student_id: UUID4
     guardian_id: UUID4
     student: ProfileSchema
     guardian: ProfileSchema
+    guardian_email: Optional[EmailStr] = None
     relationship_type: GuardianRelationType
-
-    class Config:
-        orm_mode = True
 
 class StudentWithGuardiansResponse(BaseModel):
     student: ProfileSchema

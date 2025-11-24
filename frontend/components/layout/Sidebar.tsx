@@ -21,6 +21,7 @@ import {
   UserPlus,
   FileText,
   Building2,
+  Landmark,
 } from "lucide-react"
 import { useCurrentUserRole } from "@/hooks/useCurrentUserRole"
 import { cn } from "@/lib/utils"
@@ -43,6 +44,7 @@ const adminNavItems: NavItem[] = [
   { label: "Invitations", href: "/dashboard/admin/invitations", icon: UserPlus },
   { label: "Accounts", href: "/dashboard/admin/accounts", icon: Users },
   { label: "Students & Guardians", href: "/dashboard/admin/students-guardians", icon: FileText },
+  { label: "School Settings", href: "/dashboard/school-settings", icon: Landmark },
 ]
 
 const devNavItems: NavItem[] = [

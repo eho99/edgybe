@@ -16,6 +16,7 @@ class Profile(Base):
     has_completed_profile = Column(Boolean, nullable=True, default=False)
     
     # Contact information
+    email = Column(String, nullable=True, unique=True, index=True)
     phone = Column(String, nullable=True)
     
     # Address fields
@@ -48,3 +49,9 @@ class Profile(Base):
 
     # Invitations sent by this user
     sent_invitations = relationship("Invitation", back_populates="inviter")
+    
+    # Referrals relationships
+    student_referrals = relationship("Referral", foreign_keys="Referral.student_id", back_populates="student")
+    authored_referrals = relationship("Referral", foreign_keys="Referral.author_id", back_populates="author")
+    created_interventions = relationship("Intervention", foreign_keys="Intervention.created_by", back_populates="creator")
+    created_email_templates = relationship("EmailTemplate", foreign_keys="EmailTemplate.created_by_user_id", back_populates="creator")

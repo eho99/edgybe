@@ -125,6 +125,7 @@ async def list_accounts(
             query = query.filter(
                 or_(
                     models.Profile.full_name.ilike(f"%{search}%"),
+                    models.Profile.email.ilike(f"%{search}%"),
                     models.OrganizationMember.invite_email.ilike(f"%{search}%")
                 )
             )
@@ -136,52 +137,15 @@ async def list_accounts(
         offset = (page - 1) * per_page
         members = query.offset(offset).limit(per_page).all()
         
-        # Fetch emails from Supabase Auth for all user_ids
-        user_emails = {}
-        user_ids = [m.user_id for m in members if m.user_id]
-        
-        if user_ids:
-            try:
-                from ..auth import supabase
-                # Get all users from Supabase Auth
-                users_response = supabase.auth.admin.list_users()
-                # Handle different response formats: list directly or response object with .users/.data
-                users_list = None
-                if users_response:
-                    if isinstance(users_response, list):
-                        # Direct list of User objects
-                        users_list = users_response
-                    elif hasattr(users_response, 'users') and users_response.users:
-                        # Response object with .users attribute
-                        users_list = users_response.users
-                    elif hasattr(users_response, 'data') and users_response.data:
-                        # Response object with .data attribute
-                        users_list = users_response.data
-                
-                if users_list:
-                    for user in users_list:
-                        # Convert user.id to UUID if it's a string (Supabase returns strings)
-                        user_id = user.id
-                        if isinstance(user_id, str):
-                            from uuid import UUID
-                            try:
-                                user_id = UUID(user_id)
-                            except (ValueError, AttributeError):
-                                continue
-                        
-                        if user_id in user_ids:
-                            user_emails[user_id] = user.email
-            except Exception as e:
-                # Log error but continue - we'll show None for email if we can't fetch it
-                logger.warning(f"Failed to fetch user emails from Supabase: {str(e)}")
-        
         # Convert to response format
         account_responses = []
         for member in members:
+            # Read email from Profile.email via relationship, fallback to invite_email for pending invitations
             email = None
-            if member.user_id and member.user_id in user_emails:
-                email = user_emails[member.user_id]
-            elif member.invite_email:
+            if member.user_profile and member.user_profile.email:
+                email = member.user_profile.email
+            elif member.invite_email and not member.user_id:
+                # Only use invite_email for pending invitations (user_id is None)
                 email = member.invite_email
             
             full_name = None
@@ -302,31 +266,14 @@ async def reset_member_password(
                 detail="Member not found"
             )
         
-        # Get user email from Supabase Auth or invite_email
+        # Get user email from Profile.email or invite_email for pending invitations
         user_email = None
-        if member.user_id:
-            try:
-                # Get user from Supabase Auth
-                users_response = supabase.auth.admin.list_users()
-                users_list = None
-                if users_response:
-                    if isinstance(users_response, list):
-                        users_list = users_response
-                    elif hasattr(users_response, 'users') and users_response.users:
-                        users_list = users_response.users
-                    elif hasattr(users_response, 'data') and users_response.data:
-                        users_list = users_response.data
-                
-                if users_list:
-                    for user in users_list:
-                        if user.id == str(member.user_id):
-                            user_email = user.email
-                            break
-            except Exception as e:
-                logger.warning(f"Failed to fetch user email from Supabase: {str(e)}")
+        if member.user_id and member.user_profile:
+            # Read email from Profile
+            user_email = member.user_profile.email
         
         if not user_email:
-            # Fall back to invite_email if user_id not available
+            # Fall back to invite_email for pending invitations (user_id is None)
             if member.invite_email:
                 user_email = member.invite_email
             else:

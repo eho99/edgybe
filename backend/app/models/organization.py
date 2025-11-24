@@ -58,3 +58,5 @@ class Organization(Base):
     student_guardian_links = relationship("StudentGuardian", back_populates="organization")
     invitations = relationship("Invitation", back_populates="organization")
     district = relationship("District", back_populates="organizations")
+    referrals = relationship("Referral", back_populates="organization")
+    email_templates = relationship("EmailTemplate", back_populates="organization")

@@ -329,11 +329,19 @@ class TestReactivationFlow:
         mock_profile.has_completed_profile = True
         
         # Mock inactive membership - this is what needs to be found by the query
-        mock_inactive_member = MagicMock()
-        mock_inactive_member.user_id = user_id
-        mock_inactive_member.organization_id = org_id
-        mock_inactive_member.status = MemberStatus.inactive
-        mock_inactive_member.role = OrgRole.staff
+        # Create a simple mock object that allows attribute assignment
+        # We'll use a simple object that tracks attribute changes
+        # Import the models to ensure we're using the same enum
+        from app.models import MemberStatus as ModelsMemberStatus
+        class MockMember:
+            def __init__(self):
+                self.user_id = user_id
+                self.organization_id = org_id
+                # Use the same enum that the service uses
+                self.status = ModelsMemberStatus.inactive
+                self.role = OrgRole.staff
+        
+        mock_inactive_member = MockMember()
         
         # Setup query chain - service makes TWO separate queries:
         # 1. db.query(Profile).filter(Profile.id == user_id).first()
@@ -355,6 +363,8 @@ class TestReactivationFlow:
             return query_mock
         
         mock_db_session.query.side_effect = query_side_effect
+        # Ensure the service uses the updated mock_db_session
+        invitation_service.db = mock_db_session
         
         # Execute
         result = await invitation_service.invite_or_add_user_to_org(

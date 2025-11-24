@@ -80,10 +80,10 @@ class StudentGuardianService:
         if not student:
             raise HTTPException(status_code=404, detail="Student not found")
 
-        # Return the ORM objects directly. Pydantic will handle the conversion.
+        # Eagerly load guardian and their memberships to access email via relationship
         return self.db.query(models.StudentGuardian).options(
             joinedload(models.StudentGuardian.student),
-            joinedload(models.StudentGuardian.guardian)
+            joinedload(models.StudentGuardian.guardian).joinedload(models.Profile.memberships)
         ).filter(
             models.StudentGuardian.organization_id == org_id,
             models.StudentGuardian.student_id == student_id
@@ -162,49 +162,93 @@ class StudentGuardianService:
                 detail="student_id is required for students"
             )
         
-        # Generate UUID if not provided
-        if not profile_id:
-            profile_id = uuid.uuid4()
+        # If email is provided, check if a Profile with this email already exists
+        existing_profile_by_email = None
+        if email:
+            existing_profile_by_email = self.db.query(models.Profile).filter(
+                models.Profile.email == email
+            ).first()
         
-        # Check if profile already exists
-        existing_profile = self.db.query(models.Profile).filter(
-            models.Profile.id == profile_id
-        ).first()
-        
-        if existing_profile:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Profile with ID {profile_id} already exists"
+        if existing_profile_by_email:
+            # Reuse existing profile - student can be in multiple organizations
+            profile = existing_profile_by_email
+            profile_id = profile.id
+            
+            # Validate that student_id matches if it's already set
+            if profile.student_id and profile.student_id != student_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Profile with email '{email}' already exists with different student_id"
+                )
+            
+            # Update profile fields if provided and not already set
+            if full_name and not profile.full_name:
+                profile.full_name = full_name
+            if grade_level and not profile.grade_level:
+                profile.grade_level = grade_level
+            if student_id and not profile.student_id:
+                profile.student_id = student_id
+            if phone and not profile.phone:
+                profile.phone = phone
+            if street_number and not profile.street_number:
+                profile.street_number = street_number
+            if street_name and not profile.street_name:
+                profile.street_name = street_name
+            if city and not profile.city:
+                profile.city = city
+            if state and not profile.state:
+                profile.state = state
+            if zip_code and not profile.zip_code:
+                profile.zip_code = zip_code
+            if country and not profile.country:
+                profile.country = country
+            if preferred_language and not profile.preferred_language:
+                profile.preferred_language = preferred_language
+        else:
+            # Generate UUID if not provided
+            if not profile_id:
+                profile_id = uuid.uuid4()
+            
+            # Check if profile already exists by ID
+            existing_profile = self.db.query(models.Profile).filter(
+                models.Profile.id == profile_id
+            ).first()
+            
+            if existing_profile:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Profile with ID {profile_id} already exists"
+                )
+            
+            # Check if student_id already exists (must be unique)
+            existing_student_id = self.db.query(models.Profile).filter(
+                models.Profile.student_id == student_id
+            ).first()
+            
+            if existing_student_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Student with student_id '{student_id}' already exists"
+                )
+            
+            # Create profile with all provided fields
+            profile = models.Profile(
+                id=profile_id,
+                full_name=full_name,
+                email=email,  # Set email if provided
+                grade_level=grade_level,
+                student_id=student_id,
+                phone=phone,
+                street_number=street_number,
+                street_name=street_name,
+                city=city,
+                state=state,
+                zip_code=zip_code,
+                country=country,
+                preferred_language=preferred_language,
+                has_completed_profile=False  # Not applicable for non-auth profiles
             )
-        
-        # Check if student_id already exists (must be unique)
-        existing_student_id = self.db.query(models.Profile).filter(
-            models.Profile.student_id == student_id
-        ).first()
-        
-        if existing_student_id:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Student with student_id '{student_id}' already exists"
-            )
-        
-        # Create profile with all provided fields
-        profile = models.Profile(
-            id=profile_id,
-            full_name=full_name,
-            grade_level=grade_level,
-            student_id=student_id,
-            phone=phone,
-            street_number=street_number,
-            street_name=street_name,
-            city=city,
-            state=state,
-            zip_code=zip_code,
-            country=country,
-            preferred_language=preferred_language,
-            has_completed_profile=False  # Not applicable for non-auth profiles
-        )
-        self.db.add(profile)
+            self.db.add(profile)
         
         # Check if organization membership already exists
         existing_member = self.db.query(models.OrganizationMember).filter(
@@ -276,35 +320,66 @@ class StudentGuardianService:
                 detail="email is required for guardians"
             )
         
-        if not profile_id:
-            profile_id = uuid.uuid4()
-        
-        # Check if profile already exists
+        # Check if a Profile with this email already exists (globally unique)
         existing_profile = self.db.query(models.Profile).filter(
-            models.Profile.id == profile_id
+            models.Profile.email == email
         ).first()
         
         if existing_profile:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Profile with ID {profile_id} already exists"
+            # Reuse existing profile - guardian can be in multiple organizations
+            profile = existing_profile
+            profile_id = profile.id
+            
+            # Update profile fields if provided and not already set
+            if full_name and not profile.full_name:
+                profile.full_name = full_name
+            if phone and not profile.phone:
+                profile.phone = phone
+            if street_number and not profile.street_number:
+                profile.street_number = street_number
+            if street_name and not profile.street_name:
+                profile.street_name = street_name
+            if city and not profile.city:
+                profile.city = city
+            if state and not profile.state:
+                profile.state = state
+            if zip_code and not profile.zip_code:
+                profile.zip_code = zip_code
+            if country and not profile.country:
+                profile.country = country
+            if preferred_language and not profile.preferred_language:
+                profile.preferred_language = preferred_language
+        else:
+            # Create new profile
+            if not profile_id:
+                profile_id = uuid.uuid4()
+            
+            # Check if profile with this ID already exists
+            existing_by_id = self.db.query(models.Profile).filter(
+                models.Profile.id == profile_id
+            ).first()
+            
+            if existing_by_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Profile with ID {profile_id} already exists"
+                )
+            
+            profile = models.Profile(
+                id=profile_id,
+                full_name=full_name,
+                email=email,  # Store email on Profile
+                phone=phone,
+                street_number=street_number,
+                street_name=street_name,
+                city=city,
+                state=state,
+                zip_code=zip_code,
+                country=country,
+                preferred_language=preferred_language,
+                has_completed_profile=False
             )
-        
-        # Create profile with all provided fields
-        profile = models.Profile(
-            id=profile_id,
-            full_name=full_name,
-            phone=phone,
-            street_number=street_number,
-            street_name=street_name,
-            city=city,
-            state=state,
-            zip_code=zip_code,
-            country=country,
-            preferred_language=preferred_language,
-            has_completed_profile=False
-        )
-        self.db.add(profile)
+            self.db.add(profile)
         
         # Check if organization membership already exists
         existing_member = self.db.query(models.OrganizationMember).filter(

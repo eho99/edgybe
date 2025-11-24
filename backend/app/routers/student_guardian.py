@@ -2,10 +2,13 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import UUID4
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+import logging
 
 from .. import schemas, auth, services, models
 from ..db import get_db
 from ..schemas.user import ProfileUpdateSchema
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1/organizations/{org_id}",
@@ -65,8 +68,13 @@ async def list_students(
     per_page: int = Query(10, ge=1, le=100),
     search: str | None = Query(None),
     db: Session = Depends(get_db),
-    admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role),
+    member: schemas.AuthenticatedMember = Depends(auth.require_active_role),
 ):
+    """
+    List students in the organization with optional search.
+    Admin, Secretary, and Staff can access this endpoint.
+    Search supports filtering by name, student_id, phone, or city.
+    """
     return _list_profiles(
         db=db,
         org_id=org_id,
@@ -120,9 +128,30 @@ async def get_student_guardians(
         raise HTTPException(status_code=404, detail="Student not found")
     links = services.StudentGuardianService(db).get_guardians_for_student(org_id, student_id)
     
+    # Read email directly from Profile.email
+    enhanced_links = []
+    for link in links:
+        # Convert to Pydantic model first to handle nested relations
+        link_data = schemas.GuardianLinkResponse.model_validate(link)
+        
+        # Get email directly from guardian Profile
+        guardian_email = link.guardian.email if link.guardian else None
+        
+        # Fallback to OrganizationMember.invite_email only for pending invitations (user_id is None)
+        if not guardian_email:
+            guardian_membership = next(
+                (m for m in link.guardian.memberships if m.organization_id == org_id),
+                None
+            )
+            if guardian_membership and guardian_membership.invite_email and not guardian_membership.user_id:
+                guardian_email = guardian_membership.invite_email
+        
+        link_data = link_data.model_copy(update={"guardian_email": guardian_email})
+        enhanced_links.append(link_data)
+    
     return {
         "student": student_profile,
-        "guardians": links # Pydantic iterates this list and converts each item
+        "guardians": enhanced_links
     }
 
 @router.get("/guardians/{guardian_id}/students", response_model=schemas.GuardianWithStudentsResponse)

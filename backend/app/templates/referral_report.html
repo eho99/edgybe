@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Referral Report</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #333;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 15px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            margin: 0;
+            font-size: 24pt;
+        }
+        
+        .header .org-name {
+            font-size: 14pt;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+        }
+        
+        .section-title {
+            background-color: #ecf0f1;
+            padding: 8px 12px;
+            font-weight: bold;
+            font-size: 13pt;
+            color: #2c3e50;
+            border-left: 4px solid #3498db;
+            margin-bottom: 15px;
+        }
+        
+        .info-row {
+            display: flex;
+            margin-bottom: 10px;
+            page-break-inside: avoid;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            width: 150px;
+            color: #555;
+        }
+        
+        .info-value {
+            flex: 1;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 10pt;
+        }
+        
+        .status-draft {
+            background-color: #f39c12;
+            color: white;
+        }
+        
+        .status-submitted {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .status-review {
+            background-color: #9b59b6;
+            color: white;
+        }
+        
+        .status-closed {
+            background-color: #2ecc71;
+            color: white;
+        }
+        
+        .behaviors-list {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .behaviors-list li {
+            margin-bottom: 5px;
+        }
+        
+        .description-box {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-left: 3px solid #3498db;
+            margin-top: 10px;
+        }
+        
+        .interventions-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        .interventions-table th {
+            background-color: #34495e;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-size: 11pt;
+        }
+        
+        .interventions-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .interventions-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .intervention-status {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 9pt;
+            font-weight: bold;
+        }
+        
+        .intervention-planned {
+            background-color: #f39c12;
+            color: white;
+        }
+        
+        .intervention-in-progress {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .intervention-completed {
+            background-color: #2ecc71;
+            color: white;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 9pt;
+            color: #7f8c8d;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Student Referral Report</h1>
+        <div class="org-name">{{ organization_name }}</div>
+    </div>
+    
+    <div class="section">
+        <div class="section-title">Referral Information</div>
+        <div class="info-row">
+            <div class="info-label">Referral ID:</div>
+            <div class="info-value">{{ referral_id }}</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Status:</div>
+            <div class="info-value">
+                <span class="status-badge status-{{ status|lower }}">{{ status }}</span>
+            </div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Type:</div>
+            <div class="info-value">{{ type }}</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Date Created:</div>
+            <div class="info-value">{{ created_at }}</div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <div class="section-title">Student Information</div>
+        <div class="info-row">
+            <div class="info-label">Student Name:</div>
+            <div class="info-value">{{ student_name }}</div>
+        </div>
+        {% if student_id %}
+        <div class="info-row">
+            <div class="info-label">Student ID:</div>
+            <div class="info-value">{{ student_id }}</div>
+        </div>
+        {% endif %}
+        {% if grade_level %}
+        <div class="info-row">
+            <div class="info-label">Grade Level:</div>
+            <div class="info-value">{{ grade_level }}</div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="section">
+        <div class="section-title">Incident Details</div>
+        {% if location %}
+        <div class="info-row">
+            <div class="info-label">Location:</div>
+            <div class="info-value">{{ location }}</div>
+        </div>
+        {% endif %}
+        {% if time_of_day %}
+        <div class="info-row">
+            <div class="info-label">Time of Day:</div>
+            <div class="info-value">{{ time_of_day }}</div>
+        </div>
+        {% endif %}
+        {% if behaviors %}
+        <div class="info-row">
+            <div class="info-label">Behaviors:</div>
+            <div class="info-value">
+                <ul class="behaviors-list">
+                    {% for behavior in behaviors %}
+                    <li>{{ behavior }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+        {% if description %}
+        <div class="info-row">
+            <div class="info-label">Description:</div>
+        </div>
+        <div class="description-box">
+            {{ description }}
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="section">
+        <div class="section-title">Author Information</div>
+        <div class="info-row">
+            <div class="info-label">Submitted By:</div>
+            <div class="info-value">{{ author_name }}</div>
+        </div>
+    </div>
+    
+    {% if interventions %}
+    <div class="section">
+        <div class="section-title">Interventions</div>
+        <table class="interventions-table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Status</th>
+                    <th>Description</th>
+                    <th>Created By</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for intervention in interventions %}
+                <tr>
+                    <td>{{ intervention.title }}</td>
+                    <td>
+                        <span class="intervention-status intervention-{{ intervention.status|lower|replace('_', '-') }}">
+                            {{ intervention.status }}
+                        </span>
+                    </td>
+                    <td>{{ intervention.description or 'N/A' }}</td>
+                    <td>{{ intervention.creator_name or 'N/A' }}</td>
+                    <td>{{ intervention.created_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    
+    <div class="footer">
+        Generated on {{ generated_at }}<br>
+        {{ organization_name }}
+        {% if organization_phone %}
+        | Phone: {{ organization_phone }}
+        {% endif %}
+    </div>
+</body>
+</html>
+

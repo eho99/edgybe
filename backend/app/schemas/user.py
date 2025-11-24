@@ -30,6 +30,7 @@ class ProfileSchema(BaseModel):
     id: UUID4
     full_name: str | None
     has_completed_profile: bool = Field(default=False)
+    email: Optional[EmailStr] = None
     phone: Optional[PhoneNumber] = None
     street_number: Optional[str] = None
     street_name: Optional[str] = None
@@ -58,6 +59,7 @@ class ProfileSchema(BaseModel):
 class ProfileUpdateSchema(BaseModel):
     """Schema for updating profile - all fields optional."""
     full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
     phone: Optional[PhoneNumber] = None
     street_number: Optional[str] = None
     street_name: Optional[str] = None

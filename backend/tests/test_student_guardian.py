@@ -22,6 +22,7 @@ def setup_test_data(db_session, mock_user):
     admin_profile = Profile(
         id=mock_user.id, 
         full_name="Admin User",
+        email=mock_user.email,
         phone="+14155552671",
         city="Springfield",
         state="IL",
@@ -42,6 +43,7 @@ def setup_test_data(db_session, mock_user):
     guardian_profile = Profile(
         id=mock_guardian_uuid, 
         full_name="Guardian User",
+        email="guardian@example.com",
         phone="+14155552672",
         street_number="456",
         street_name="Oak Ave",
@@ -53,6 +55,7 @@ def setup_test_data(db_session, mock_user):
     student_profile = Profile(
         id=mock_student_uuid, 
         full_name="Student User",
+        email="student@example.com",
         grade_level="9",
         student_id="STU001",
         is_active=True
@@ -127,6 +130,163 @@ def test_get_student_guardians(client: TestClient, db_session):
     guardian_entry = data["guardians"][0]
     assert guardian_entry["guardian_id"] == str(mock_guardian_uuid)
     assert guardian_entry["relationship_type"] == "primary"
+
+
+def test_get_student_guardians_with_email_via_relationship(client: TestClient, db_session):
+    """Test that guardian emails are correctly retrieved via the relationship-based approach"""
+    # Update guardian member to have an email
+    guardian_member = db_session.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == mock_org_uuid,
+        OrganizationMember.user_id == mock_guardian_uuid
+    ).first()
+    guardian_member.invite_email = "guardian@example.com"
+    db_session.commit()
+    
+    # Create a link
+    link = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=mock_guardian_uuid,
+        student_id=mock_student_uuid,
+        relationship_type=GuardianRelationType.primary
+    )
+    db_session.add(link)
+    db_session.commit()
+
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["student"]["id"] == str(mock_student_uuid)
+    assert len(data["guardians"]) == 1
+    
+    guardian_entry = data["guardians"][0]
+    # Verify email is retrieved via relationship
+    assert guardian_entry["guardian_email"] == "guardian@example.com"
+    assert guardian_entry["guardian_id"] == str(mock_guardian_uuid)
+    assert guardian_entry["guardian"]["id"] == str(mock_guardian_uuid)
+    assert guardian_entry["guardian"]["full_name"] == "Guardian User"
+
+
+def test_get_student_guardians_multiple_guardians_with_emails(client: TestClient, db_session):
+    """Test getting multiple guardians with different email scenarios"""
+    # Create a second guardian
+    second_guardian_id = uuid.uuid4()
+    second_guardian_profile = Profile(
+        id=second_guardian_id,
+        full_name="Second Guardian",
+        email="second.guardian@example.com",
+        phone="+14155552673",
+        city="Springfield",
+        state="IL",
+        is_active=True
+    )
+    db_session.add(second_guardian_profile)
+    
+    second_guardian_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=second_guardian_id,
+        role=OrgRole.guardian,
+        status=MemberStatus.active,
+        invite_email="second.guardian@example.com"  # Has email
+    )
+    db_session.add(second_guardian_member)
+    
+    # Update first guardian to have email
+    first_guardian_member = db_session.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == mock_org_uuid,
+        OrganizationMember.user_id == mock_guardian_uuid
+    ).first()
+    first_guardian_member.invite_email = "first.guardian@example.com"
+    
+    # Create links for both guardians
+    link1 = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=mock_guardian_uuid,
+        student_id=mock_student_uuid,
+        relationship_type=GuardianRelationType.primary
+    )
+    link2 = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=second_guardian_id,
+        student_id=mock_student_uuid,
+        relationship_type=GuardianRelationType.secondary
+    )
+    db_session.add_all([link1, link2])
+    db_session.commit()
+
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["guardians"]) == 2
+    
+    # Verify both guardians have emails retrieved via relationship
+    guardian_emails = {g["guardian_email"] for g in data["guardians"]}
+    assert "first.guardian@example.com" in guardian_emails
+    assert "second.guardian@example.com" in guardian_emails
+    
+    # Verify relationship types
+    relationship_types = {g["relationship_type"] for g in data["guardians"]}
+    assert "primary" in relationship_types
+    assert "secondary" in relationship_types
+
+
+def test_get_student_guardians_guardian_without_email(client: TestClient, db_session):
+    """Test that guardian without email returns None for guardian_email"""
+    # Ensure guardian member has no email
+    guardian_member = db_session.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == mock_org_uuid,
+        OrganizationMember.user_id == mock_guardian_uuid
+    ).first()
+    guardian_member.invite_email = None
+    db_session.commit()
+    
+    # Create a link
+    link = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=mock_guardian_uuid,
+        student_id=mock_student_uuid,
+        relationship_type=GuardianRelationType.primary
+    )
+    db_session.add(link)
+    db_session.commit()
+
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["guardians"]) == 1
+    
+    guardian_entry = data["guardians"][0]
+    # Verify email is None when not present
+    assert guardian_entry["guardian_email"] is None
+    assert guardian_entry["guardian_id"] == str(mock_guardian_uuid)
+    assert guardian_entry["guardian"]["full_name"] == "Guardian User"
+
+
+def test_get_student_guardians_nonexistent_student(client: TestClient):
+    """Test that getting guardians for nonexistent student returns 404"""
+    nonexistent_student_id = uuid.uuid4()
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{nonexistent_student_id}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_get_student_guardians_no_guardians(client: TestClient):
+    """Test getting guardians for student with no guardians returns empty list"""
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["student"]["id"] == str(mock_student_uuid)
+    assert isinstance(data["guardians"], list)
+    assert len(data["guardians"]) == 0
 
 
 def test_get_guardian_students(client: TestClient, db_session):
@@ -217,6 +377,7 @@ def test_link_guardian_not_in_org(client: TestClient, db_session):
     other_guardian_profile = Profile(
         id=other_guardian_id, 
         full_name="Other Guardian",
+        email="other.guardian@example.com",
         phone="(555) 111-2222",
         city="Chicago",
         state="IL",
@@ -255,6 +416,7 @@ def test_link_student_not_in_org(client: TestClient, db_session):
     other_student_profile = Profile(
         id=other_student_id, 
         full_name="Other Student",
+        email="other.student@example.com",
         grade_level="10",
         student_id="STU002",
         is_active=True
@@ -306,6 +468,7 @@ def test_link_guardian_with_wrong_role(client: TestClient, db_session):
     other_student_profile = Profile(
         id=other_student_id, 
         full_name="Other Student",
+        email="other.student@example.com",
         grade_level="10",
         student_id="STU002",
         is_active=True
@@ -671,6 +834,7 @@ def test_duplicate_profile_prevention(client: TestClient, db_session):
     existing_profile = Profile(
         id=existing_id, 
         full_name="Existing",
+        email="existing@example.com",
         grade_level="11",
         student_id="STU003",
         is_active=True
@@ -724,12 +888,257 @@ def test_duplicate_student_id_prevention(client: TestClient, db_session):
 
 
 def test_list_students_endpoint(client: TestClient):
+    """Test listing students without search"""
     url = f"/api/v1/organizations/{mock_org_uuid}/students"
     response = client.get(url)
     assert response.status_code == 200
     data = response.json()
     assert data["total"] >= 1
     assert len(data["profiles"]) >= 1
+
+
+def test_list_students_with_search_by_name(client: TestClient, db_session):
+    """Test searching students by name"""
+    # Create additional student with specific name
+    search_student_id = uuid.uuid4()
+    search_student_profile = Profile(
+        id=search_student_id,
+        full_name="John Searchable",
+        email="john.searchable@example.com",
+        grade_level="10",
+        student_id="STU_SEARCH_001",
+        is_active=True
+    )
+    db_session.add(search_student_profile)
+    
+    search_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=search_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(search_student_member)
+    db_session.commit()
+    
+    # Search by name
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=Searchable"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    # Should find our searchable student
+    found_student = any(p["id"] == str(search_student_id) for p in data["profiles"])
+    assert found_student, f"Expected to find student {search_student_id} in search results"
+
+
+def test_list_students_with_search_by_student_id(client: TestClient, db_session):
+    """Test searching students by student_id"""
+    # Create additional student with specific student_id
+    search_student_id = uuid.uuid4()
+    search_student_profile = Profile(
+        id=search_student_id,
+        full_name="Test Student",
+        email="test.student@example.com",
+        grade_level="11",
+        student_id="STU_SEARCH_002",
+        is_active=True
+    )
+    db_session.add(search_student_profile)
+    
+    search_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=search_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(search_student_member)
+    db_session.commit()
+    
+    # Search by student_id
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=STU_SEARCH_002"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    # Should find our searchable student
+    found_student = any(p["id"] == str(search_student_id) for p in data["profiles"])
+    assert found_student, f"Expected to find student {search_student_id} in search results"
+    # Verify the student_id matches
+    student = next(p for p in data["profiles"] if p["id"] == str(search_student_id))
+    assert student["student_id"] == "STU_SEARCH_002"
+
+
+def test_list_students_search_case_insensitive(client: TestClient, db_session):
+    """Test that search is case-insensitive"""
+    # Create student with mixed case name
+    search_student_id = uuid.uuid4()
+    search_student_profile = Profile(
+        id=search_student_id,
+        full_name="Jane Doe",
+        email="jane.doe@example.com",
+        grade_level="9",
+        student_id="STU_CASE_001",
+        is_active=True
+    )
+    db_session.add(search_student_profile)
+    
+    search_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=search_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(search_student_member)
+    db_session.commit()
+    
+    # Search with lowercase
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=jane"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    found_student = any(p["id"] == str(search_student_id) for p in data["profiles"])
+    assert found_student, "Case-insensitive search should find 'Jane Doe' when searching 'jane'"
+
+
+def test_list_students_search_partial_match(client: TestClient, db_session):
+    """Test that search supports partial matching"""
+    # Create student
+    search_student_id = uuid.uuid4()
+    search_student_profile = Profile(
+        id=search_student_id,
+        full_name="Alice Smith",
+        email="alice.smith@example.com",
+        grade_level="8",
+        student_id="STU_PARTIAL_001",
+        is_active=True
+    )
+    db_session.add(search_student_profile)
+    
+    search_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=search_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(search_student_member)
+    db_session.commit()
+    
+    # Search with partial name
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=lice"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    found_student = any(p["id"] == str(search_student_id) for p in data["profiles"])
+    assert found_student, "Partial search should find 'Alice Smith' when searching 'lice'"
+
+
+def test_list_students_search_no_results(client: TestClient):
+    """Test search with no matching results"""
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=NonexistentStudent12345"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 0
+    assert len(data["profiles"]) == 0
+
+
+def test_list_students_search_with_pagination(client: TestClient, db_session):
+    """Test search with pagination"""
+    # Create multiple students with searchable names
+    student_ids = []
+    for i in range(5):
+        student_id = uuid.uuid4()
+        student_profile = Profile(
+            id=student_id,
+            full_name=f"Searchable Student {i}",
+            email=f"student{i}@example.com",
+            grade_level="9",
+            student_id=f"STU_PAGE_{i:03d}",
+            is_active=True
+        )
+        db_session.add(student_profile)
+        
+        student_member = OrganizationMember(
+            organization_id=mock_org_uuid,
+            user_id=student_id,
+            role=OrgRole.student,
+            status=MemberStatus.active
+        )
+        db_session.add(student_member)
+        student_ids.append(student_id)
+    
+    db_session.commit()
+    
+    # Search and get first page
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=Searchable&page=1&per_page=2"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 5  # At least our 5 students
+    assert len(data["profiles"]) == 2  # Per page limit
+    assert data["page"] == 1
+    assert data["per_page"] == 2
+    assert data["total_pages"] >= 3  # At least 3 pages with 2 per page
+
+
+def test_list_students_staff_can_access(client: TestClient, db_session):
+    """Test that staff members can access the students endpoint"""
+    # Create a staff member
+    staff_user_id = uuid.uuid4()
+    staff_profile = Profile(
+        id=staff_user_id,
+        full_name="Staff User",
+        email="staff@example.com",
+        is_active=True
+    )
+    db_session.add(staff_profile)
+    
+    staff_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=staff_user_id,
+        role=OrgRole.staff,
+        status=MemberStatus.active
+    )
+    db_session.add(staff_member)
+    db_session.commit()
+    
+    # Override auth to return staff member
+    from app.main import app
+    from app.auth import get_current_active_member, require_active_role
+    from app import schemas
+    from fastapi import Request
+    
+    async def override_get_current_active_member_staff(
+        request: Request,
+        org_id,
+        db,
+        user
+    ):
+        return schemas.AuthenticatedMember(
+            user=schemas.SupabaseUser(id=staff_user_id, email="staff@example.com"),
+            org_id=mock_org_uuid,
+            role=OrgRole.staff
+        )
+    
+    app.dependency_overrides[get_current_active_member] = override_get_current_active_member_staff
+    app.dependency_overrides[require_active_role] = override_get_current_active_member_staff
+    
+    try:
+        url = f"/api/v1/organizations/{mock_org_uuid}/students"
+        response = client.get(url)
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "profiles" in data
+    finally:
+        # Clean up overrides
+        app.dependency_overrides.clear()
 
 
 def test_update_student_profile(client: TestClient, db_session):
