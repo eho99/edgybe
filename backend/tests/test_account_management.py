@@ -25,6 +25,7 @@ def test_org(db_session, mock_user):
     admin_profile = Profile(
         id=mock_user.id,
         full_name="Admin User",
+        email=mock_user.email,
         has_completed_profile=True,
         phone="(555) 123-4567",
         city="Springfield",
@@ -42,9 +43,11 @@ def test_org(db_session, mock_user):
 def sample_member(db_session, test_org):
     """Create a sample member in the organization."""
     user_id = uuid4()
+    email = f"user-{user_id.hex[:8]}@example.com"
     profile = Profile(
         id=user_id,
         full_name="Test User",
+        email=email,
         has_completed_profile=True,
         phone="(555) 234-5678",
         city="Springfield",
@@ -64,6 +67,8 @@ def sample_member(db_session, test_org):
     db_session.add(member)
     db_session.commit()
     db_session.refresh(member)
+    # Store email for easy access in tests
+    member.profile_email = email
     return member
 
 
@@ -71,9 +76,11 @@ def sample_member(db_session, test_org):
 def sample_inactive_member(db_session, test_org):
     """Create a sample inactive member (staff role, not student/guardian)."""
     user_id = uuid4()
+    email = f"inactive-{user_id.hex[:8]}@example.com"
     profile = Profile(
         id=user_id,
         full_name="Inactive User",
+        email=email,
         has_completed_profile=True,
         phone="(555) 345-6789",
         city="Springfield",
@@ -87,26 +94,20 @@ def sample_inactive_member(db_session, test_org):
         organization_id=test_org.id,
         user_id=user_id,
         role=OrgRole.staff,  # Use staff role, not student (students/guardians are filtered out)
-        status=MemberStatus.inactive,
+        status=MemberStatus.active,
         joined_at=datetime.utcnow()
     )
     db_session.add(member)
     db_session.commit()
     db_session.refresh(member)
+    member.profile_email = email
     return member
 
 
 class TestAccountManagementEndpoints:
     
-    def test_list_accounts_success(self, client: TestClient, test_org, sample_member, mock_supabase_client):
+    def test_list_accounts_success(self, client: TestClient, test_org, sample_member):
         """Test successful listing of accounts"""
-        # Mock Supabase to return user email - use UUID object to match database
-        mock_user = type('obj', (object,), {
-            'id': sample_member.user_id,  # Use UUID object, not string
-            'email': 'test@example.com'
-        })()
-        mock_supabase_client.auth.admin.list_users.return_value = [mock_user]
-        
         response = client.get(f"/api/v1/organizations/{test_org.id}/members")
         
         assert response.status_code == 200
@@ -118,18 +119,12 @@ class TestAccountManagementEndpoints:
         assert len(member_accounts) == 1
         assert member_accounts[0]["role"] == "staff"
         assert member_accounts[0]["status"] == "active"
+        assert member_accounts[0]["email"] == sample_member.profile_email
         assert data["page"] == 1
         assert data["per_page"] == 10
     
-    def test_list_accounts_with_filters(self, client: TestClient, test_org, sample_member, mock_supabase_client):
+    def test_list_accounts_with_filters(self, client: TestClient, test_org, sample_member):
         """Test listing accounts with status filter and search"""
-        # Mock Supabase - use UUID object to match database
-        mock_user = type('obj', (object,), {
-            'id': sample_member.user_id,  # Use UUID object, not string
-            'email': 'test@example.com'
-        })()
-        mock_supabase_client.auth.admin.list_users.return_value = [mock_user]
-        
         # Test with status filter
         response = client.get(
             f"/api/v1/organizations/{test_org.id}/members",
@@ -151,27 +146,19 @@ class TestAccountManagementEndpoints:
         # Should find our sample member
         assert any(acc["id"] == str(sample_member.id) for acc in data["accounts"])
     
-    def test_list_accounts_includes_inactive(self, client: TestClient, test_org, sample_inactive_member, mock_supabase_client, mock_user, db_session):
+    def test_list_accounts_includes_inactive(self, client: TestClient, test_org, sample_inactive_member, mock_user, db_session):
         """Test listing accounts includes inactive members"""
         # Verify the inactive member exists in the database
         db_member = db_session.query(OrganizationMember).filter(
             OrganizationMember.id == sample_inactive_member.id
         ).first()
         assert db_member is not None, "Inactive member should exist in database"
-        assert db_member.status == MemberStatus.inactive, "Member should be inactive"
+        assert db_member.status == MemberStatus.active, "Fixture should create active member before status update"
         assert db_member.role == OrgRole.staff, "Member should be staff role"
         
-        # Mock Supabase - include both admin user and inactive member user
-        # Use UUID objects to match database
-        admin_mock_user = type('obj', (object,), {
-            'id': mock_user.id,  # Admin user from test_org fixture
-            'email': 'admin@example.com'
-        })()
-        inactive_mock_user = type('obj', (object,), {
-            'id': sample_inactive_member.user_id,  # Inactive member user
-            'email': 'inactive@example.com'
-        })()
-        mock_supabase_client.auth.admin.list_users.return_value = [admin_mock_user, inactive_mock_user]
+        # Manually set the member to inactive for the test scenario
+        db_member.status = MemberStatus.inactive
+        db_session.commit()
         
         response = client.get(f"/api/v1/organizations/{test_org.id}/members")
         
@@ -199,6 +186,7 @@ class TestAccountManagementEndpoints:
         guardian_profile = Profile(
             id=guardian_user_id,
             full_name="Guardian User",
+            email="guardian@example.com",
             has_completed_profile=True,
             city="Springfield",
             state="IL",
@@ -219,6 +207,7 @@ class TestAccountManagementEndpoints:
         student_profile = Profile(
             id=student_user_id,
             full_name="Student User",
+            email="student@example.com",
             grade_level="10",
             student_id="STU999",
             has_completed_profile=True,
@@ -263,7 +252,7 @@ class TestAccountManagementEndpoints:
         assert response.status_code == 400
         assert "Invalid status filter" in response.json()["detail"]
     
-    def test_list_accounts_with_pagination(self, client: TestClient, db_session, test_org, mock_supabase_client):
+    def test_list_accounts_with_pagination(self, client: TestClient, db_session, test_org):
         """Test listing accounts with pagination"""
         # Create multiple members
         members = []
@@ -272,6 +261,7 @@ class TestAccountManagementEndpoints:
             profile = Profile(
                 id=user_id,
                 full_name=f"User {i}",
+                email=f"user{i}@example.com",
                 has_completed_profile=True,
                 phone=f"(555) {100+i:03d}-{2000+i:04d}",
                 city="Springfield",
@@ -292,13 +282,6 @@ class TestAccountManagementEndpoints:
             members.append(member)
         
         db_session.commit()
-        
-        # Mock Supabase - use UUID objects to match database
-        mock_users = [
-            type('obj', (object,), {'id': m.user_id, 'email': f'user{i}@example.com'})()  # Use UUID object, not string
-            for i, m in enumerate(members)
-        ]
-        mock_supabase_client.auth.admin.list_users.return_value = mock_users
         
         # Test pagination
         response = client.get(
@@ -379,6 +362,7 @@ class TestAccountManagementEndpoints:
         admin_profile = Profile(
             id=mock_user.id,
             full_name="Admin User",
+            email=mock_user.email,
             has_completed_profile=True,
             phone="(555) 123-4567",
             city="Springfield",
@@ -387,13 +371,6 @@ class TestAccountManagementEndpoints:
         )
         db_session.add(admin_profile)
         db_session.commit()
-        
-        # Mock Supabase - use UUID object to match database
-        mock_user_obj = type('obj', (object,), {
-            'id': mock_user.id,  # Use UUID object, not string
-            'email': 'admin@example.com'
-        })()
-        mock_supabase_client.auth.admin.list_users.return_value = [mock_user_obj]
         
         response = client.get(f"/api/v1/organizations/{new_org.id}/members")
         

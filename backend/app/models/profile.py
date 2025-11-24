@@ -16,6 +16,7 @@ class Profile(Base):
     has_completed_profile = Column(Boolean, nullable=True, default=False)
     
     # Contact information
+    email = Column(String, nullable=True, unique=True, index=True)
     phone = Column(String, nullable=True)
     
     # Address fields

@@ -56,6 +56,9 @@ export function EmailReferralModal({
         const response = await apiClient<{ guardians: { guardian: GuardianInfo, guardian_email?: string }[] }>(
           `/api/v1/organizations/${orgId}/students/${studentId}/guardians`
         )
+        console.log("Organisation ID: ", orgId)
+        console.log("Student ID: ", studentId)
+        console.log("Response: ", response)
         
         const guardiansList = response.guardians
           .map((g) => ({
@@ -65,6 +68,8 @@ export function EmailReferralModal({
           .filter((g): g is GuardianInfo => !!g.email) // Only include guardians with email
 
         setGuardians(guardiansList)
+        
+        console.log("Guardians List: ", guardiansList)
         // Pre-select all guardians by default? Maybe better to let user choose.
       } catch (err) {
         handleError(err, { title: 'Failed to load guardians' })

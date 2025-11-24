@@ -71,9 +71,12 @@ async def update_my_profile(
         profile = models.Profile(
             id=user.id,
             full_name=profile_data.full_name,
+            email=user.email,  # Sync email from Supabase Auth
             has_completed_profile=True
         )
         # Set new fields if provided
+        if profile_data.email is not None:
+            profile.email = profile_data.email
         if profile_data.phone is not None:
             profile.phone = profile_data.phone
         if profile_data.street_number is not None:
@@ -99,6 +102,12 @@ async def update_my_profile(
         db.add(profile)
     else:
         # Update existing profile - update only provided fields
+        # Sync email from Supabase Auth if not set or if user email changed
+        if not profile.email or profile.email != user.email:
+            profile.email = user.email
+        # Allow manual email update if provided in request
+        if profile_data.email is not None:
+            profile.email = profile_data.email
         if profile_data.full_name is not None:
             profile.full_name = profile_data.full_name
         if profile_data.phone is not None:

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Get Resend API key from environment
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_EMAIL_ADDRESS = os.getenv("RESEND_EMAIL_ADDRESS")
 
 
 # Available email variables
@@ -44,7 +45,7 @@ def send_referral_email(
     subject: str,
     message: str,
     pdf_bytes: Optional[bytes] = None,
-    sender_email: str = "noreply@edgybe.com"
+    sender_email: str = RESEND_EMAIL_ADDRESS
 ) -> tuple[bool, str, Optional[UUID4]]:
     """
     Send a referral email via Resend with optional PDF attachment.

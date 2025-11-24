@@ -22,6 +22,7 @@ def setup_test_data(db_session, mock_user):
     admin_profile = Profile(
         id=mock_user.id, 
         full_name="Admin User",
+        email=mock_user.email,
         phone="+14155552671",
         city="Springfield",
         state="IL",
@@ -42,6 +43,7 @@ def setup_test_data(db_session, mock_user):
     guardian_profile = Profile(
         id=mock_guardian_uuid, 
         full_name="Guardian User",
+        email="guardian@example.com",
         phone="+14155552672",
         street_number="456",
         street_name="Oak Ave",
@@ -53,6 +55,7 @@ def setup_test_data(db_session, mock_user):
     student_profile = Profile(
         id=mock_student_uuid, 
         full_name="Student User",
+        email="student@example.com",
         grade_level="9",
         student_id="STU001",
         is_active=True
@@ -172,6 +175,7 @@ def test_get_student_guardians_multiple_guardians_with_emails(client: TestClient
     second_guardian_profile = Profile(
         id=second_guardian_id,
         full_name="Second Guardian",
+        email="second.guardian@example.com",
         phone="+14155552673",
         city="Springfield",
         state="IL",
@@ -373,6 +377,7 @@ def test_link_guardian_not_in_org(client: TestClient, db_session):
     other_guardian_profile = Profile(
         id=other_guardian_id, 
         full_name="Other Guardian",
+        email="other.guardian@example.com",
         phone="(555) 111-2222",
         city="Chicago",
         state="IL",
@@ -411,6 +416,7 @@ def test_link_student_not_in_org(client: TestClient, db_session):
     other_student_profile = Profile(
         id=other_student_id, 
         full_name="Other Student",
+        email="other.student@example.com",
         grade_level="10",
         student_id="STU002",
         is_active=True
@@ -462,6 +468,7 @@ def test_link_guardian_with_wrong_role(client: TestClient, db_session):
     other_student_profile = Profile(
         id=other_student_id, 
         full_name="Other Student",
+        email="other.student@example.com",
         grade_level="10",
         student_id="STU002",
         is_active=True
@@ -827,6 +834,7 @@ def test_duplicate_profile_prevention(client: TestClient, db_session):
     existing_profile = Profile(
         id=existing_id, 
         full_name="Existing",
+        email="existing@example.com",
         grade_level="11",
         student_id="STU003",
         is_active=True
@@ -896,6 +904,7 @@ def test_list_students_with_search_by_name(client: TestClient, db_session):
     search_student_profile = Profile(
         id=search_student_id,
         full_name="John Searchable",
+        email="john.searchable@example.com",
         grade_level="10",
         student_id="STU_SEARCH_001",
         is_active=True
@@ -930,6 +939,7 @@ def test_list_students_with_search_by_student_id(client: TestClient, db_session)
     search_student_profile = Profile(
         id=search_student_id,
         full_name="Test Student",
+        email="test.student@example.com",
         grade_level="11",
         student_id="STU_SEARCH_002",
         is_active=True
@@ -967,6 +977,7 @@ def test_list_students_search_case_insensitive(client: TestClient, db_session):
     search_student_profile = Profile(
         id=search_student_id,
         full_name="Jane Doe",
+        email="jane.doe@example.com",
         grade_level="9",
         student_id="STU_CASE_001",
         is_active=True
@@ -999,6 +1010,7 @@ def test_list_students_search_partial_match(client: TestClient, db_session):
     search_student_profile = Profile(
         id=search_student_id,
         full_name="Alice Smith",
+        email="alice.smith@example.com",
         grade_level="8",
         student_id="STU_PARTIAL_001",
         is_active=True
@@ -1044,6 +1056,7 @@ def test_list_students_search_with_pagination(client: TestClient, db_session):
         student_profile = Profile(
             id=student_id,
             full_name=f"Searchable Student {i}",
+            email=f"student{i}@example.com",
             grade_level="9",
             student_id=f"STU_PAGE_{i:03d}",
             is_active=True
@@ -1081,6 +1094,7 @@ def test_list_students_staff_can_access(client: TestClient, db_session):
     staff_profile = Profile(
         id=staff_user_id,
         full_name="Staff User",
+        email="staff@example.com",
         is_active=True
     )
     db_session.add(staff_profile)

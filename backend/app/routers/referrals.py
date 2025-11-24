@@ -40,14 +40,10 @@ async def get_referral_config(
     
     # Check if preset_config exists and is not empty
     if not org.preset_config:
-        logger.warning(f"Organization {org_id} has no preset_config. Returning default empty config.")
-        # Return empty config structure instead of error
-        return schemas.ReferralConfigResponse(
-            types=[],
-            locations={"options": [], "label": "locations"},
-            time_of_day={"options": [], "label": "time_of_day"},
-            behaviors={"options": [], "label": "behaviors"},
-            common_interventions=[]
+        logger.warning(f"Organization {org_id} has no preset_config. Cannot load referral config.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Referral configuration not found for this organization"
         )
     
     # Parse config if it's a string
@@ -62,14 +58,20 @@ async def get_referral_config(
                 detail="Invalid configuration format"
             )
     
-    # Use preset_config directly (no 'referral_config' nesting expected)
+    # Handle cases where referral configuration is nested under "referral_config"
     if not isinstance(config, dict):
         logger.error(f"Organization {org_id} preset_config is not a dict: {type(config)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Invalid referral configuration format: preset_config must be a dictionary"
         )
-    referral_config = config
+    
+    if "referral_config" in config and isinstance(config["referral_config"], dict):
+        referral_config = config["referral_config"]
+    elif "referralConfig" in config and isinstance(config["referralConfig"], dict):
+        referral_config = config["referralConfig"]
+    else:
+        referral_config = config
 
     if not referral_config or not isinstance(referral_config, dict):
         raise HTTPException(

@@ -83,6 +83,7 @@ def test_admin_profile(db_session, mock_user, test_organization):
     profile = Profile(
         id=mock_user.id,
         full_name="Test Admin",
+        email=mock_user.email,
         phone="+14155552671",
         is_active=True
     )
@@ -111,6 +112,7 @@ def test_student_profile(db_session, test_organization, test_student_id):
     profile = Profile(
         id=test_student_id,
         full_name="John Doe",
+        email="john.doe@example.com",
         grade_level="9",
         student_id="STU001",
         is_active=True
@@ -214,10 +216,11 @@ class TestReferralConfig:
         """
         # Act
         response = client.get(f"/api/v1/organizations/{test_organization.id}/config/referrals")
-        
+
         # Assert
         assert response.status_code == 200
         data = response.json()
+        print(data)
         assert "types" in data
         assert "Behavior" in data["types"]
         assert "locations" in data
@@ -248,6 +251,7 @@ class TestReferralConfig:
         profile = Profile(
             id=mock_user.id,
             full_name="Test Admin",
+            email=mock_user.email,
             phone="+14155552671",
             is_active=True
         )
@@ -993,6 +997,7 @@ class TestRoleBasedAccess:
         staff_profile = Profile(
             id=mock_user.id,
             full_name="Staff Member",
+            email=mock_user.email,
             is_active=True
         )
         db_session.add(staff_profile)

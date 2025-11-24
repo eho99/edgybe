@@ -85,6 +85,7 @@ class InvitationService:
             profile = self._create_local_profile(
                 user_id=user_id,
                 full_name=full_name or getattr(existing_user, 'email', email),
+                email=email,  # Sync email from Supabase Auth
                 has_completed_profile=True  # Existing users should be marked as completed
             )
         else:
@@ -92,6 +93,9 @@ class InvitationService:
             if not profile.has_completed_profile:
                 logger.info(f"User {email} has existing profile with incomplete status. Marking as completed for reactivation.")
                 profile.has_completed_profile = True
+            # Sync email from Supabase Auth
+            if not profile.email or profile.email != email:
+                profile.email = email
             if full_name and not profile.full_name:
                 profile.full_name = full_name
         
@@ -260,12 +264,13 @@ class InvitationService:
             ) from e
 
     def _create_local_profile(
-        self, user_id: UUID4, full_name: str | None, has_completed_profile: bool = False
+        self, user_id: UUID4, full_name: str | None, email: str | None = None, has_completed_profile: bool = False
     ) -> models.Profile:
         """Internal helper to create the profile row."""
         profile = models.Profile(
             id=user_id,
             full_name=full_name,
+            email=email,  # Set email if provided
             has_completed_profile=has_completed_profile
         )
         self.db.add(profile)

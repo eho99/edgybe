@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/useToast'
 interface ProfileRecord {
   id: string
   full_name: string | null
+  email: string | null
   phone: string | null
   street_number: string | null
   street_name: string | null
@@ -94,6 +95,7 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
     setEditingProfile(profile)
     setFormState({
       full_name: profile.full_name ?? '',
+      email: profile.email ?? '',
       phone: profile.phone ?? '',
       street_number: profile.street_number ?? '',
       street_name: profile.street_name ?? '',
@@ -148,9 +150,9 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
 
   const columns = useMemo(() => {
     if (isStudentTab) {
-      return ['Name', 'Grade / ID', 'Phone', 'Location', 'Preferred Lang', '']
+      return ['Name', 'Grade / ID', 'Email', 'Phone', 'Location', 'Preferred Lang', '']
     }
-    return ['Name', 'Phone', 'Location', 'Preferred Lang', '']
+    return ['Name', 'Email', 'Phone', 'Location', 'Preferred Lang', '']
   }, [isStudentTab])
 
   return (
@@ -229,8 +231,9 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
                             <span>{profile.grade_level ?? '—'}</span>
                             <span className="text-muted-foreground">{profile.student_id ?? '—'}</span>
                           </div>
-                        </TableCell>
+                      </TableCell>
                       ) : null}
+                    <TableCell>{profile.email ?? '—'}</TableCell>
                       <TableCell>{profile.phone ?? '—'}</TableCell>
                       <TableCell>
                         {[profile.city, profile.state]
@@ -322,6 +325,15 @@ function ProfileEditForm({
           <Input
             value={formState.full_name ?? ''}
             onChange={(e) => handleChange('full_name', e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Email</Label>
+          <Input
+            type="email"
+            value={formState.email ?? ''}
+            onChange={(e) => handleChange('email', e.target.value)}
+            placeholder="user@example.com"
           />
         </div>
         {isStudent && (
