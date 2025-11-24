@@ -3,17 +3,21 @@ import apiClient from '@/lib/apiClient'
 import { createClient } from '@/lib/supabase/client'
 
 // Types
+export type ReferralFieldSelection = 'single' | 'multi'
+
+export interface ReferralFieldConfig {
+    label?: string
+    options?: string[]
+    helpText?: string
+    required?: boolean
+    selection?: ReferralFieldSelection
+}
+
 export interface ReferralConfig {
     types: string[]
-    locations: {
-        options: string[]
-    }
-    time_of_day: {
-        options: string[]
-    }
-    behaviors: {
-        options: string[]
-    }
+    locations?: ReferralFieldConfig
+    time_of_day?: ReferralFieldConfig
+    behaviors?: ReferralFieldConfig
     common_interventions: string[]
 }
 

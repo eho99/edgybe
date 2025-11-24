@@ -1,7 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useReferralConfig, createReferral, type ReferralCreatePayload } from '@/hooks/useReferrals'
+import {
+  useReferralConfig,
+  createReferral,
+  type ReferralCreatePayload,
+  type ReferralFieldConfig,
+  type ReferralFieldSelection,
+} from '@/hooks/useReferrals'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,9 +22,55 @@ import { StudentSearchSelect } from '@/components/ui/StudentSearchSelect'
 interface CreateReferralFormProps {
   orgId: string
   onSuccess?: (referralId: string) => void
+  onCancel?: () => void
 }
 
-export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps) {
+type ReferralFormState = {
+  student_id: string
+  type: string
+  location: string
+  location_custom: string
+  time_of_day: string
+  time_of_day_custom: string
+  behaviors: string[]
+  description: string
+}
+
+const createEmptyFormState = (): ReferralFormState => ({
+  student_id: '',
+  type: '',
+  location: '',
+  location_custom: '',
+  time_of_day: '',
+  time_of_day_custom: '',
+  behaviors: [],
+  description: '',
+})
+
+type NormalizedFieldConfig = {
+  label: string
+  helpText?: string
+  required: boolean
+  selection: ReferralFieldSelection
+  options: string[]
+}
+
+const normalizeFieldConfig = (
+  field: ReferralFieldConfig | undefined,
+  fallback: { label: string; selection?: ReferralFieldSelection }
+): NormalizedFieldConfig => {
+  const rawOptions = Array.isArray(field?.options) ? field?.options ?? [] : []
+  const options = rawOptions.filter((option): option is string => typeof option === 'string')
+  return {
+    label: field?.label ?? fallback.label,
+    helpText: typeof field?.helpText === 'string' ? field.helpText : undefined,
+    required: Boolean(field?.required),
+    selection: field?.selection === 'multi' ? 'multi' : fallback.selection ?? 'single',
+    options,
+  }
+}
+
+export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferralFormProps) {
   const { config, isLoading: configLoading } = useReferralConfig(orgId)
   const { toast } = useToast()
   const { handleError } = useErrorHandler()
@@ -26,16 +78,9 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Form state
-  const [formData, setFormData] = useState({
-    student_id: '',
-    type: '',
-    location: '',
-    location_custom: '',
-    time_of_day: '',
-    time_of_day_custom: '',
-    behaviors: [] as string[],
-    description: '',
-  })
+  const [formData, setFormData] = useState<ReferralFormState>(createEmptyFormState)
+
+  const resetForm = () => setFormData(createEmptyFormState())
 
 
   const handleBehaviorToggle = (behavior: string) => {
@@ -109,16 +154,7 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
       })
 
       // Reset form
-      setFormData({
-        student_id: '',
-        type: '',
-        location: '',
-        location_custom: '',
-        time_of_day: '',
-        time_of_day_custom: '',
-        behaviors: [],
-        description: '',
-      })
+      resetForm()
 
       onSuccess?.(result.id)
     } catch (err) {
@@ -151,11 +187,15 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
   }
 
   // Check if config has empty arrays (config loaded but no data)
-  const hasEmptyConfig = 
+  const locationField = normalizeFieldConfig(config.locations, { label: 'Location' })
+  const timeOfDayField = normalizeFieldConfig(config.time_of_day, { label: 'Time of Day' })
+  const behaviorsField = normalizeFieldConfig(config.behaviors, { label: 'Behaviors Observed', selection: 'multi' })
+
+  const hasEmptyConfig =
     (!config.types || config.types.length === 0) &&
-    (!config.locations?.options || config.locations.options.length === 0) &&
-    (!config.time_of_day?.options || config.time_of_day.options.length === 0) &&
-    (!config.behaviors?.options || config.behaviors.options.length === 0)
+    (locationField.options.length === 0) &&
+    (timeOfDayField.options.length === 0) &&
+    (behaviorsField.options.length === 0)
 
   if (hasEmptyConfig) {
     return (
@@ -214,7 +254,15 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
 
           {/* Location */}
           <div className="space-y-2">
-            <Label htmlFor="location">Location</Label>
+            <div>
+              <Label htmlFor="location">
+                {locationField.label}
+                {locationField.required ? ' *' : ''}
+              </Label>
+              {locationField.helpText && (
+                <p className="text-sm text-muted-foreground">{locationField.helpText}</p>
+              )}
+            </div>
             <Select
               value={formData.location}
               onValueChange={(value) =>
@@ -229,8 +277,8 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
                 <SelectValue placeholder="Select location" />
               </SelectTrigger>
               <SelectContent>
-                {config.locations?.options && config.locations.options.length > 0 ? (
-                  config.locations.options.map((location) => (
+                {locationField.options.length > 0 ? (
+                  locationField.options.map((location) => (
                     <SelectItem key={location} value={location}>
                       {location}
                     </SelectItem>
@@ -242,7 +290,7 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
                 )}
               </SelectContent>
             </Select>
-            {formData.location === 'Other' && (
+              {formData.location === 'Other' && (
               <Input
                 placeholder="Specify location"
                 value={formData.location_custom}
@@ -256,7 +304,15 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
 
           {/* Time of Day */}
           <div className="space-y-2">
-            <Label htmlFor="time_of_day">Time of Day</Label>
+            <div>
+              <Label htmlFor="time_of_day">
+                {timeOfDayField.label}
+                {timeOfDayField.required ? ' *' : ''}
+              </Label>
+              {timeOfDayField.helpText && (
+                <p className="text-sm text-muted-foreground">{timeOfDayField.helpText}</p>
+              )}
+            </div>
             <Select
               value={formData.time_of_day}
               onValueChange={(value) =>
@@ -271,8 +327,8 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
                 <SelectValue placeholder="Select time of day" />
               </SelectTrigger>
               <SelectContent>
-                {config.time_of_day?.options && config.time_of_day.options.length > 0 ? (
-                  config.time_of_day.options.map((time) => (
+                {timeOfDayField.options.length > 0 ? (
+                  timeOfDayField.options.map((time) => (
                     <SelectItem key={time} value={time}>
                       {time}
                     </SelectItem>
@@ -298,10 +354,18 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
 
           {/* Behaviors */}
           <div className="space-y-3">
-            <Label>Behaviors Observed</Label>
+            <div>
+              <Label>
+                {behaviorsField.label}
+                {behaviorsField.required ? ' *' : ''}
+              </Label>
+              {behaviorsField.helpText && (
+                <p className="text-sm text-muted-foreground">{behaviorsField.helpText}</p>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              {config.behaviors?.options && config.behaviors.options.length > 0 ? (
-                config.behaviors.options.map((behavior) => (
+              {behaviorsField.options.length > 0 ? (
+                behaviorsField.options.map((behavior) => (
                 <div key={behavior} className="flex items-center space-x-2">
                   <Checkbox
                     id={`behavior-${behavior}`}
@@ -343,7 +407,13 @@ export function CreateReferralForm({ orgId, onSuccess }: CreateReferralFormProps
             <Button
               type="button"
               variant="outline"
-              onClick={onSuccess}
+              onClick={() => {
+                if (onCancel) {
+                  onCancel()
+                } else {
+                  resetForm()
+                }
+              }}
               disabled={isSubmitting}
             >
               Cancel

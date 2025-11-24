@@ -48,6 +48,7 @@ export default function ReferralsPage() {
             setShowCreateForm(false)
             // List will auto-refresh via SWR
           }}
+          onCancel={() => setShowCreateForm(false)}
         />
       )}
 

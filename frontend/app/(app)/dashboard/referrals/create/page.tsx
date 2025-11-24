@@ -66,7 +66,11 @@ export default function CreateReferralPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CreateReferralForm orgId={orgId} onSuccess={handleSuccess} />
+          <CreateReferralForm
+            orgId={orgId}
+            onSuccess={handleSuccess}
+            onCancel={() => router.push('/dashboard/referrals')}
+          />
         </CardContent>
       </Card>
     </div>

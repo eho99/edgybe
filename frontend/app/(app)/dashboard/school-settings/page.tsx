@@ -21,6 +21,7 @@ import {
   PresetConfigEditor,
   type PresetConfigEntry,
   createEntry,
+  createOptionEntry,
   validatePresetConfigEntries,
 } from '@/components/school-settings/PresetConfigEditor'
 
@@ -135,11 +136,46 @@ const parseJsonField = (value: string, label: string) => {
   }
 }
 
+const toTitleCase = (value: string) =>
+  value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1))
+
 const convertPresetConfigToEntries = (presetConfig: Record<string, unknown> | null): PresetConfigEntry[] => {
   if (!presetConfig) return []
-  const entries = Object.entries(presetConfig).map(([key, value]) =>
-    createEntry(key, JSON.stringify(value, null, 2))
-  )
+
+  const entries: PresetConfigEntry[] = []
+  for (const [key, value] of Object.entries(presetConfig)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const record = value as Record<string, unknown>
+      const optionStrings = Array.isArray(record.options)
+        ? record.options.filter((option): option is string => typeof option === 'string')
+        : []
+
+      entries.push(
+        createEntry(key, {
+          label: typeof record.label === 'string' ? record.label : undefined,
+          helpText: typeof record.helpText === 'string' ? record.helpText : undefined,
+          required: Boolean(record.required),
+          selection: record.selection === 'multi' ? 'multi' : 'single',
+          options: optionStrings.length ? optionStrings.map((option) => createOptionEntry(option)) : undefined,
+        })
+      )
+    } else if (Array.isArray(value)) {
+      const optionStrings = value.filter((option): option is string => typeof option === 'string')
+      entries.push(
+        createEntry(key, {
+          label: toTitleCase(key),
+          options: optionStrings.map((option) => createOptionEntry(option)),
+        })
+      )
+    } else {
+      entries.push(createEntry(key))
+    }
+  }
+
   return validatePresetConfigEntries(entries)
 }
 
@@ -150,7 +186,7 @@ const convertDisclaimers = (value: Record<string, unknown> | null): DisclaimerSt
 })
 
 const buildPresetConfigPayload = (entries: PresetConfigEntry[]) => {
-  const meaningfulEntries = entries.filter((entry) => entry.key.trim() || entry.value.trim())
+  const meaningfulEntries = entries.filter((entry) => entry.key.trim())
   if (meaningfulEntries.length === 0) {
     return undefined
   }
@@ -162,15 +198,31 @@ const buildPresetConfigPayload = (entries: PresetConfigEntry[]) => {
 
   const payload: Record<string, unknown> = {}
   for (const entry of meaningfulEntries) {
-    if (!entry.key.trim()) {
-      throw new Error('Preset config key is required.')
+    const trimmedKey = entry.key.trim()
+    const options = entry.options.map((option) => option.value.trim()).filter(Boolean)
+    if (options.length === 0) {
+      throw new Error(`Preset field "${entry.key}" must include at least one option.`)
     }
-    try {
-      payload[entry.key.trim()] = JSON.parse(entry.value)
-    } catch {
-      throw new Error(`Preset field "${entry.key}" contains invalid JSON.`)
+
+    const label = entry.label.trim() || toTitleCase(trimmedKey)
+    const helpText = entry.helpText.trim()
+
+    payload[trimmedKey] = {
+      label,
+      helpText: helpText || undefined,
+      required: entry.required || undefined,
+      selection: entry.selection,
+      options,
+    }
+
+    if (!helpText) {
+      delete (payload[trimmedKey] as Record<string, unknown>).helpText
+    }
+    if (!entry.required) {
+      delete (payload[trimmedKey] as Record<string, unknown>).required
     }
   }
+
   return payload
 }
 
