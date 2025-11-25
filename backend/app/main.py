@@ -3,8 +3,10 @@ from fastapi.security import HTTPBearer
 from .routers import organizations, users, members, student_guardian, invitations, referrals
 from .db import Base, engine
 from fastapi.middleware.cors import CORSMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 app = FastAPI(title="Edgybe")
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"])
 
 app.add_middleware(
     CORSMiddleware,
