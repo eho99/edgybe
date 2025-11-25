@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "B2B SaaS MVP",
-  description: "Multi-tenant B2B SaaS application with Supabase Auth and FastAPI backend",
+  title: "AdminReferral",
+  description: "Behavioral Management System for Schools",
 };
 
 export default function RootLayout({
