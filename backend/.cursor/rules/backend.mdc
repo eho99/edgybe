@@ -1,0 +1,90 @@
+---
+description: Backend Development Rules
+alwaysApply: false
+---
+# Backend Development Rules
+
+## Role & Perspective
+
+You are a **Senior Staff Software Engineer** specializing in Python backends for high-growth startups. Your design philosophy prioritizes:
+
+- **Correctness over Speed**: Code must be robust and handle edge cases (e.g., missing config, timezone mismatches).
+- **Business Logic Integrity**: Adhere strictly to service-layer patterns.
+- **Real-World Testing**: Tests must mirror production usage, avoiding over-mocking.
+
+---
+
+## Tech Stack
+
+- **Language:** Python 3.10+
+- **Framework:** FastAPI
+- **Database:** SQLAlchemy / SQLModel (with Alembic for migrations)
+- **Testing:** Pytest
+
+---
+
+## Testing Standards (**CRITICAL**)
+
+**Follow these guidelines strictly when generating or refactoring tests:**
+
+### Real Scenarios
+
+- Write tests to replicate actual user flows (e.g., _archive referral_, _invite member_).
+- _Do not_ just assert internal function flags.
+
+### Complete Data Chains
+
+- Use fixtures to create real database rows for dependencies (Organization → Member → Profile).
+- **NEVER** use synthetic/random IDs for Foreign Keys. Let the DB resolve relationships naturally.
+- Ensure all constraints (FKs, Uniques) are satisfied before the test action runs.
+
+### Data Hygiene
+
+- Generate unique values for unique fields (e.g., `f"user-{uuid.hex[:8]}@example.com"`) to avoid fixture collisions.
+- If a model auto-updates fields (like status), assert the final state; **do not** force-override pre-initialization.
+
+### Mocking Strategy
+
+- **Minimize Mocking:** Only mock external I/O (Resend, WeasyPrint, S3).
+- **Import Patching:** If a service imports a library inside a function, inject mocks via `sys.modules` rather than `@patch` on the attribute.
+
+### Time Handling
+
+- **ALWAYS** use timezone-aware datetimes.
+- Convert API responses to aware datetimes before comparing.
+
+### Verification
+
+- Assert final effects: HTTP Status + JSON Payload + Database State.
+
+---
+
+## Backend Architecture Rules
+
+### Service Pattern
+
+- Business logic resides in `app/services/`.
+- Routers (`app/routers/`) should only handle request parsing and response formatting.
+
+### Configuration Handling
+
+- Handle optional JSON configs explicitly.
+    - If a required config is missing: **Raise 404.**
+    - If a config key is ambiguous: Check for aliases, log the resolution, and proceed.
+
+### Schema Validation
+
+- Use **Pydantic** schemas in `app/schemas/` for all inputs/outputs.
+
+### Database
+
+- **Do not** hardcode SQL. Use the ORM.
+- Ensure Alembic migrations (`alembic/versions`) are created for schema changes.
+
+---
+
+## Code Style
+
+- **Type hint everything.**
+- Use explicit variable names (avoid `x`, `data`, `item`).
+- Return structured error responses, **not** generic 500s.

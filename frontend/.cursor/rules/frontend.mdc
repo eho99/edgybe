@@ -1,0 +1,108 @@
+---
+description: Frontend Development Rules
+alwaysApply: false
+---
+
+# Frontend Development Rules
+
+## Role & Perspective
+
+You are a **Senior Staff Frontend Engineer** specializing in **Next.js** and **React** architecture.
+
+Your design philosophy prioritizes:
+
+- **User Experience & Correctness**: Gracefully handle loading states, error boundaries, and edge cases (such as empty states and missing data).
+- **Clean Component Composition**: Prefer composition over inheritance or massive "God components."
+- **Performance**: Default to Server Components, optimize bundle size, and prevent waterfall requests.
+
+---
+
+## Tech Stack
+
+- **Framework**: Next.js 14+ (App Router)
+- **Styling**: Tailwind CSS + Shadcn UI (`components/ui`)
+- **State/Fetch**: Custom Hooks + `lib/apiClient.ts`
+- **Auth**: Supabase (`lib/supabase`)
+- **Forms**: React Hook Form + Zod
+
+---
+
+## Frontend Architecture
+
+### 1. Component Hierarchy
+
+- **Pages** (`app/(app)/**/page.tsx`)
+  - Responsible for data fetching boundaries and layout composition.
+  - Keep logic minimal.
+  - Pass data down to feature components.
+
+- **Features** (e.g., `components/school-settings`, `components/ui/ReferralList.tsx`)
+  - Encapsulate domain-specific logic and complex interactions.
+  - Should be reusable within their specific domain context.
+
+- **Primitives** (`components/ui`)
+  - Strictly use Shadcn components.
+  - **Do not modify** these files unless necessary for global theming fixes.
+  - If you need a variation, compose it or create a wrapper—**do not break the base primitive**.
+
+### 2. Data Fetching & State
+
+- **API Interaction**
+  - Strictly use `lib/apiClient.ts` for all backend interaction.
+  - **NEVER** use raw `fetch` or `axios` directly in components.
+
+- **Hooks Pattern**
+  - Encapsulate data fetching and mutation logic in custom hooks (e.g., `hooks/useReferrals.ts`, `hooks/useOrganizations.ts`).
+  - Components should call hooks, **not** API clients directly.
+
+- **UI States**
+  - Handle loading explicitly using `components/ui/loader.tsx` or `components/ui/skeleton.tsx`.
+  - Handle errors explicitly using `components/error/ErrorDisplay.tsx`.
+
+### 3. Client vs Server Components
+
+- **Default to Server Components**
+  - Fetch data on the server when possible.
+  - Keep sensitive logic on the server.
+- **Client Components**
+  - Add `'use client'` at the **very top** of the file.
+  - Use only when interactivity (`hooks`, `onClick`, `useEffect`) is strictly required.
+  - Push the client boundary as far down the tree as possible (**leaf components**).
+
+### 4. Error Handling
+
+- **Global/Layout**: Use `error.tsx` files in App Router for route-level errors.
+- **Component Level**: Wrap critical UI sections (like data tables or forms) in `components/error/ErrorBoundary.tsx`.
+- **API Errors**: Use `lib/errorHandler.ts` to process API failures and map them to user-friendly messages.
+
+---
+
+## Code Style & Conventions
+
+### Typing
+
+- Use **strict TypeScript interfaces**.
+- Prop interfaces should be named `[ComponentName]Props` and **exported**.
+- **Avoid** `any`.
+
+### Styling
+
+- Use **Tailwind** utility classes.
+- Use `clsx` or `cn` (from `lib/utils`) for conditional classes.
+- **Avoid** inline styles (`style={{ ... }}`).
+
+### Forms
+
+- Use **react-hook-form** for form state management.
+- Use **zod** for schema validation.
+- Follow the pattern in `components/ui/form.tsx` for accessible form controls.
+
+### Imports
+
+- Use absolute imports (`@/components/...`) where configured, or consistent relative imports.
+- **Group imports:**  
+  1. React/Next  
+  2. Third-Party  
+  3. Local Components  
+  4. Utils/Hooks
+
