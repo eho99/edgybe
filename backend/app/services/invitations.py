@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException
 from supabase_auth.errors import AuthApiError
 import logging
 from datetime import datetime, timedelta, timezone
+import os
 
 from .. import models
 from .. import schemas
@@ -12,6 +13,8 @@ from ..db import get_db
 from ..auth import supabase  
 
 logger = logging.getLogger(__name__)
+
+FRONTEND_URL = os.getenv("NEXT_PUBLIC_FRONTEND_URL", "http://localhost:3000")
 
 class InvitationService:
     def __init__(self, db: Session):
@@ -129,7 +132,7 @@ class InvitationService:
         invite_response = supabase.auth.admin.invite_user_by_email(
             email,
             options={
-                "redirect_to": "http://localhost:3000/invite-profile-completion"
+                "redirect_to": FRONTEND_URL + "/invite-profile-completion"
             }
         )
         
@@ -190,7 +193,7 @@ class InvitationService:
                     supabase.auth.reset_password_for_email(
                         email,
                         {
-                            "redirect_to": "http://localhost:3000/reset-password"
+                            "redirect_to": FRONTEND_URL + "/reset-password"
                         }
                     )
                     logger.info(f"Password reset email requested for {email}")
@@ -386,9 +389,7 @@ class InvitationService:
                 logger.info(f"Resending invitation to {invitation.email} via Supabase")
                 
                 # Use the same redirect_to URL as original invitation
-                redirect_to = "http://localhost:3000/invite-profile-completion"
-                # TODO: Make this configurable via environment variable
-                # redirect_to = os.getenv("NEXT_PUBLIC_FRONTEND_URL", "http://localhost:3000") + "/invite-profile-completion"
+                redirect_to = FRONTEND_URL + "/invite-profile-completion"
                 
                 invite_response = supabase.auth.admin.invite_user_by_email(
                     invitation.email,

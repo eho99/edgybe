@@ -3,6 +3,7 @@ from pydantic import UUID4
 from sqlalchemy import and_, or_
 from typing import Optional
 import logging
+import os
 
 from .. import models, schemas, auth
 from sqlalchemy.orm import Session
@@ -10,6 +11,8 @@ from ..db import get_db
 from ..services.invitations import InvitationService, get_invitation_service
 
 logger = logging.getLogger(__name__)
+
+FRONTEND_URL = os.getenv("NEXT_PUBLIC_FRONTEND_URL", "http://localhost:3000")
 
 router = APIRouter(
     prefix="/api/v1/organizations/{org_id}/members",
@@ -286,7 +289,7 @@ async def reset_member_password(
         supabase.auth.reset_password_for_email(
             user_email,
             {
-                "redirect_to": "http://localhost:3000/reset-password"
+                "redirect_to": FRONTEND_URL + "/reset-password"
             }
         )
         

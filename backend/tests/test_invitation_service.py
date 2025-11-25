@@ -3,9 +3,12 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+import os
 
 from app.services.invitations import InvitationService
 from app.models import Invitation, OrganizationMember, Profile, Organization, InvitationStatus, OrgRole, MemberStatus
+
+FRONTEND_URL = os.getenv("NEXT_PUBLIC_FRONTEND_URL", "http://localhost:3000")
 
 
 @pytest.fixture
@@ -15,7 +18,7 @@ def mock_db_session():
 
 @pytest.fixture
 def invitation_service(mock_db_session):
-    return InvitationService(mock_db_session)
+    return InvitationService(mock_db_session, frontend_url=FRONTEND_URL)
 
 
 @pytest.fixture
@@ -162,7 +165,7 @@ class TestResendInvitation:
         assert "successfully" in message.lower()
         mock_supabase.auth.admin.invite_user_by_email.assert_called_once_with(
             email,
-            options={"redirect_to": "http://localhost:3000/invite-profile-completion"}
+            options={"redirect_to": FRONTEND_URL + "/invite-profile-completion"}
         )
         assert mock_invitation.sent_at is not None
         mock_db_session.commit.assert_called_once()
@@ -385,7 +388,7 @@ class TestReactivationFlow:
         # Verify password reset email was sent for reactivated user
         mock_supabase.auth.reset_password_for_email.assert_called_once_with(
             email,
-            {"redirect_to": "http://localhost:3000/reset-password"}
+            {"redirect_to": FRONTEND_URL + "/reset-password"}
         )
         mock_db_session.commit.assert_called_once()
         # Verify refresh was called on the member
@@ -454,7 +457,7 @@ class TestReactivationFlow:
         # Verify password reset email was sent for reactivated user
         mock_supabase.auth.reset_password_for_email.assert_called_once_with(
             email,
-            {"redirect_to": "http://localhost:3000/reset-password"}
+            {"redirect_to": FRONTEND_URL + "/reset-password"}
         )
         mock_db_session.commit.assert_called_once()
     

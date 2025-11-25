@@ -5,6 +5,7 @@ import logging
 from .. import models, schemas, auth
 from ..db import get_db
 from ..services.invitations import InvitationService, get_invitation_service
+import os
 
 router = APIRouter(
     prefix="/api/v1/users/me",
@@ -16,6 +17,8 @@ public_router = APIRouter(
     prefix="/api/v1/users",
     tags=["Users"],
 )
+
+FRONTEND_URL = os.getenv("NEXT_PUBLIC_FRONTEND_URL", "http://localhost:3000")
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +219,7 @@ async def request_password_reset(
         supabase.auth.reset_password_for_email(
             request.email,
             {
-                "redirect_to": "http://localhost:3000/reset-password"
+                "redirect_to": FRONTEND_URL + "/reset-password"
             }
         )
         
@@ -250,7 +253,7 @@ async def public_request_password_reset(
         supabase.auth.reset_password_for_email(
             request.email,
             {
-                "redirect_to": "http://localhost:3000/reset-password"
+                "redirect_to": FRONTEND_URL + "/reset-password"
             }
         )
         

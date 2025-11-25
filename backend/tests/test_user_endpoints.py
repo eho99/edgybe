@@ -2,12 +2,13 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 import uuid
-
+import os
 from app.models import Profile
 
 # Use the mock_user fixture from conftest
 mock_user_uuid = uuid.UUID("190fa60a-1ff1-4fa0-abc3-ffac2ed211b1")
 mock_profile_uuid = uuid.UUID("290fa60a-1ff1-4fa0-abc3-ffac2ed211b1")
+FRONTEND_URL = os.getenv("NEXT_PUBLIC_FRONTEND_URL", "http://localhost:3000")
 
 @pytest.fixture(autouse=True)
 def setup_db(db_session, mock_user):
@@ -76,7 +77,7 @@ def test_public_request_password_reset_success(client_without_auth: TestClient, 
     mock_supabase_client.auth.reset_password_for_email.assert_called_once_with(
         "test@example.com",
         {
-            "redirect_to": "http://localhost:3000/reset-password"
+            "redirect_to": FRONTEND_URL + "/reset-password"
         }
     )
 
