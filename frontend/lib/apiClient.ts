@@ -21,7 +21,6 @@ const apiClient = async <T>(
     const supabase = createClient()
 
     const { data: { session } } = await supabase.auth.getSession()
-    console.log('Token for Swagger UI:', session?.access_token)
 
     const token = session?.access_token
 
