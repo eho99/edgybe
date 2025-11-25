@@ -5,7 +5,7 @@ Tests use reusable fixtures for easy debugging.
 import pytest
 from fastapi.testclient import TestClient
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.models import (
     Profile, Organization, OrganizationMember, 
@@ -273,6 +273,150 @@ class TestReferralConfig:
         # Assert
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
+
+
+class TestReferralStats:
+    """Tests for GET /referrals/stats."""
+
+    def test_referral_stats_default_range(
+        self,
+        client: TestClient,
+        db_session,
+        test_organization,
+        test_admin_profile,
+        test_student_profile,
+        test_referral,
+    ):
+        now = datetime.now(timezone.utc)
+        # Referral within the default 30-day window
+        recent_referral = Referral(
+            organization_id=test_organization.id,
+            student_id=test_student_profile.id,
+            author_id=test_admin_profile.id,
+            status="SUBMITTED",
+            type="Support",
+            location="Hallway",
+            time_of_day="Afternoon",
+            behaviors=["Disruption"],
+            description="Hallway incident",
+            created_at=now - timedelta(days=5),
+        )
+
+        second_referral = Referral(
+            organization_id=test_organization.id,
+            student_id=test_student_profile.id,
+            author_id=test_admin_profile.id,
+            status="REVIEW",
+            type="Behavior",
+            location="Cafeteria",
+            time_of_day="Lunch",
+            behaviors=["Tardy"],
+            description="Lunchroom disruption",
+            created_at=now - timedelta(days=2),
+        )
+
+        # Outside 30-day window to ensure default is applied
+        old_referral = Referral(
+            organization_id=test_organization.id,
+            student_id=test_student_profile.id,
+            author_id=test_admin_profile.id,
+            status="CLOSED",
+            type="Behavior",
+            location="Playground",
+            time_of_day="Recess",
+            behaviors=["Defiance"],
+            description="Old incident",
+            created_at=now - timedelta(days=45),
+        )
+
+        db_session.add_all([recent_referral, second_referral, old_referral])
+        db_session.commit()
+
+        response = client.get(
+            f"/api/v1/organizations/{test_organization.id}/referrals/stats"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_referrals"] == 3
+        location_labels = [item["label"] for item in data["breakdown_by_location"]]
+        assert "Classroom" in location_labels
+        assert "Hallway" in location_labels
+        assert "Cafeteria" in location_labels
+        behavior_labels = [item["label"] for item in data["breakdown_by_behavior"]]
+        assert "Disruption" in behavior_labels
+        recent_locations = {item["location"] for item in data["recent_referrals"]}
+        assert {"Classroom", "Hallway", "Cafeteria"}.issubset(recent_locations)
+        assert all(item["student_name"] == "John Doe" for item in data["recent_referrals"])
+        start_ts = datetime.fromisoformat(
+            data["start_date"].replace("Z", "+00:00")
+            if data["start_date"].endswith("Z")
+            else data["start_date"]
+        )
+        end_ts = datetime.fromisoformat(
+            data["end_date"].replace("Z", "+00:00")
+            if data["end_date"].endswith("Z")
+            else data["end_date"]
+        )
+        assert start_ts <= end_ts
+
+    def test_referral_stats_filters(
+        self,
+        client: TestClient,
+        db_session,
+        test_organization,
+        test_admin_profile,
+        test_student_profile,
+        test_referral,
+    ):
+        now = datetime.now(timezone.utc)
+        filtered_referral = Referral(
+            organization_id=test_organization.id,
+            student_id=test_student_profile.id,
+            author_id=test_admin_profile.id,
+            status="SUBMITTED",
+            type="Support",
+            location="Hallway",
+            time_of_day="Afternoon",
+            behaviors=["Disruption"],
+            description="Targeted incident",
+            created_at=now - timedelta(days=3),
+        )
+
+        other_referral = Referral(
+            organization_id=test_organization.id,
+            student_id=test_student_profile.id,
+            author_id=test_admin_profile.id,
+            status="REVIEW",
+            type="Behavior",
+            location="Playground",
+            time_of_day="Morning",
+            behaviors=["Defiance"],
+            description="Other incident",
+            created_at=now - timedelta(days=1),
+        )
+
+        db_session.add_all([filtered_referral, other_referral])
+        db_session.commit()
+
+        params = [
+            ("location", "Hallway"),
+            ("time_of_day", "Afternoon"),
+            ("behaviors", "Disruption"),
+            ("start_date", (now - timedelta(days=10)).isoformat()),
+            ("end_date", (now + timedelta(days=1)).isoformat()),
+        ]
+
+        response = client.get(
+            f"/api/v1/organizations/{test_organization.id}/referrals/stats",
+            params=params,
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_referrals"] == 1
+        assert data["breakdown_by_location"][0]["label"] == "Hallway"
+        assert data["recent_referrals"][0]["location"] == "Hallway"
 
 
 # ============================================================================

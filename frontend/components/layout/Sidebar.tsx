@@ -47,10 +47,6 @@ const adminNavItems: NavItem[] = [
   { label: "School Settings", href: "/dashboard/school-settings", icon: Landmark },
 ]
 
-const devNavItems: NavItem[] = [
-  { label: "Organizations", href: "/dashboard/organizations", icon: Building2 },
-]
-
 function NavSection({ title, items }: { title?: string; items: NavItem[] }) {
   const pathname = usePathname()
   return (
@@ -103,7 +99,6 @@ export function AppSidebar() {
           <NavSection items={mainNavItems} />
           <NavSection title="Referrals" items={referralNavItems} />
           {isAdmin && <NavSection title="Admin" items={adminNavItems} />}
-          <NavSection title="Dev Tools" items={devNavItems} />
         </SidebarContent>
         <SidebarFooter className="border-t border-border/60 text-xs text-muted-foreground">
           &copy; {new Date().getFullYear()} EdgyBe

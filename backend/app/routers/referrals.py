@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from .. import schemas, auth, models
 from ..db import get_db
-from ..services import pdf_service, email_service
+from ..services import pdf_service, email_service, referral_service
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +146,48 @@ async def get_referral_config(
         logger.warning(f"Returning mostly empty referral config. referral_config keys: {list(referral_config.keys())}")
     
     return schemas.ReferralConfigResponse(**response_data)
+
+
+@router.get("/referrals/stats", response_model=schemas.ReferralStatsResponse)
+async def get_referral_stats_endpoint(
+    org_id: UUID4,
+    start_date: Optional[datetime] = Query(None, description="ISO8601 start date (inclusive)"),
+    end_date: Optional[datetime] = Query(None, description="ISO8601 end date (inclusive)"),
+    location: Optional[str] = Query(None, description="Filter by referral location"),
+    time_of_day: Optional[str] = Query(None, description="Filter by time of day"),
+    behaviors: Optional[List[str]] = Query(
+        None, description="Filter by one or more observed behaviors"
+    ),
+    recent_limit: int = Query(
+        5,
+        ge=1,
+        le=20,
+        description="Number of recent referrals to return",
+    ),
+    db: Session = Depends(get_db),
+    member: schemas.AuthenticatedMember = Depends(auth.get_current_active_member),
+):
+    """
+    Retrieve referral statistics for a given organization within a time range.
+    """
+    try:
+        stats = referral_service.get_referral_stats(
+            db=db,
+            org_id=org_id,
+            start_date=start_date,
+            end_date=end_date,
+            location=location,
+            time_of_day=time_of_day,
+            behaviors=behaviors,
+            recent_limit=recent_limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+
+    return schemas.ReferralStatsResponse(**stats)
 
 
 @router.get("/config/email-variables")

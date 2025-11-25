@@ -147,6 +147,82 @@ export interface EmailTemplateUpdatePayload {
     is_active?: boolean
 }
 
+export interface ReferralStatsBreakdownItem {
+    label: string
+    count: number
+}
+
+export interface ReferralStatsRecentItem {
+    id: string
+    student_name: string | null
+    student_student_id: string | null
+    type: string
+    status: string
+    location: string | null
+    time_of_day: string | null
+    behaviors: string[] | null
+    created_at: string
+}
+
+export interface ReferralStatsData {
+    total_referrals: number
+    breakdown_by_location: ReferralStatsBreakdownItem[]
+    breakdown_by_time_of_day: ReferralStatsBreakdownItem[]
+    breakdown_by_behavior: ReferralStatsBreakdownItem[]
+    recent_referrals: ReferralStatsRecentItem[]
+    start_date: string
+    end_date: string
+}
+
+export interface ReferralStatsFilters {
+    start_date?: string
+    end_date?: string
+    location?: string
+    time_of_day?: string
+    behaviors?: string[]
+    recent_limit?: number
+}
+
+export function useReferralStats(orgId: string | null, filters?: ReferralStatsFilters) {
+    const queryParams = new URLSearchParams()
+    if (filters) {
+        if (filters.start_date) {
+            queryParams.append('start_date', filters.start_date)
+        }
+        if (filters.end_date) {
+            queryParams.append('end_date', filters.end_date)
+        }
+        if (filters.location) {
+            queryParams.append('location', filters.location)
+        }
+        if (filters.time_of_day) {
+            queryParams.append('time_of_day', filters.time_of_day)
+        }
+        if (filters.behaviors && filters.behaviors.length > 0) {
+            filters.behaviors.forEach((behavior) => {
+                queryParams.append('behaviors', behavior)
+            })
+        }
+        if (filters.recent_limit) {
+            queryParams.append('recent_limit', filters.recent_limit.toString())
+        }
+    }
+
+    const queryString = queryParams.toString()
+    const endpoint = orgId
+        ? `/api/v1/organizations/${orgId}/referrals/stats${queryString ? `?${queryString}` : ''}`
+        : null
+
+    const { data, error, isLoading, mutate } = useSWR<ReferralStatsData>(endpoint, apiClient)
+
+    return {
+        stats: data,
+        isLoading,
+        error,
+        mutate,
+    }
+}
+
 export interface EmailVariable {
     label: string
     value: string
