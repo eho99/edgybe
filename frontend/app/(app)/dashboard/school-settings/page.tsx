@@ -24,6 +24,7 @@ import {
   createOptionEntry,
   validatePresetConfigEntries,
 } from '@/components/school-settings/PresetConfigEditor'
+import type { ReferralFieldSelection } from '@/hooks/useReferrals'
 
 type OrganizationFormState = {
   name: string
@@ -46,7 +47,57 @@ type OrganizationFormState = {
 
 type DisclaimerKey = 'general' | 'self_harm' | 'child_abuse'
 
-type DisclaimerState = Record<DisclaimerKey, string>
+type DisclaimerState = { [key in DisclaimerKey]: string }
+
+type FieldConfig = {
+  name: keyof OrganizationFormState
+  label: string
+  placeholder?: string
+  type?: string
+}
+
+const fieldGroups: { title: string; fields: FieldConfig[] }[] = [
+  {
+    title: 'Basic Information',
+    fields: [
+      { name: 'name', label: 'Name' },
+      { name: 'slug', label: 'Slug', placeholder: 'url-friendly-name' },
+    ],
+  },
+  {
+    title: 'Address',
+    fields: [
+      { name: 'street_number', label: 'Street Number' },
+      { name: 'street_name', label: 'Street Name' },
+      { name: 'city', label: 'City' },
+      { name: 'state', label: 'State' },
+      { name: 'zip_code', label: 'ZIP Code' },
+    ],
+  },
+  {
+    title: 'Contact',
+    fields: [
+      { name: 'phone_number', label: 'Phone Number', placeholder: '+14155550123' },
+      { name: 'office_extension', label: 'Office Extension' },
+    ],
+  },
+  {
+    title: 'Grades',
+    fields: [
+      { name: 'lower_grade', label: 'Lower Grade', type: 'number' },
+      { name: 'upper_grade', label: 'Upper Grade', type: 'number' },
+    ],
+  },
+  {
+    title: 'SIS Integrations',
+    fields: [
+      { name: 'aeries_school_code', label: 'Aeries School Code' },
+      { name: 'sis_source_id', label: 'SIS Source ID' },
+      { name: 'sis_client_id', label: 'SIS Client ID' },
+      { name: 'sis_client_secret', label: 'SIS Client Secret' },
+    ],
+  },
+]
 
 const emptyFormState: OrganizationFormState = {
   name: '',
@@ -67,7 +118,7 @@ const emptyFormState: OrganizationFormState = {
   sis_client_secret: '',
 }
 
-const disclaimerLabels: Record<DisclaimerKey, string> = {
+const disclaimerLabels: { [key in DisclaimerKey]: string } = {
   general: 'General Disclaimer',
   self_harm: 'Self-Harm Disclaimer',
   child_abuse: 'Child Abuse Disclaimer',
@@ -143,6 +194,9 @@ const toTitleCase = (value: string) =>
     .trim()
     .replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1))
 
+const normalizeSelection = (value: unknown): ReferralFieldSelection =>
+  value === 'multi' ? 'multi' : 'single'
+
 const convertPresetConfigToEntries = (presetConfig: Record<string, unknown> | null): PresetConfigEntry[] => {
   if (!presetConfig) return []
 
@@ -153,13 +207,14 @@ const convertPresetConfigToEntries = (presetConfig: Record<string, unknown> | nu
       const optionStrings = Array.isArray(record.options)
         ? record.options.filter((option): option is string => typeof option === 'string')
         : []
+      const selection = normalizeSelection(record.selection) as ReferralFieldSelection
 
       entries.push(
         createEntry(key, {
           label: typeof record.label === 'string' ? record.label : undefined,
           helpText: typeof record.helpText === 'string' ? record.helpText : undefined,
           required: Boolean(record.required),
-          selection: record.selection === 'multi' ? 'multi' : 'single',
+          selection,
           options: optionStrings.length ? optionStrings.map((option) => createOptionEntry(option)) : undefined,
         })
       )
@@ -227,11 +282,11 @@ const buildPresetConfigPayload = (entries: PresetConfigEntry[]) => {
 }
 
 const buildDisclaimerPayload = (state: DisclaimerState) => {
-  const payload: Record<DisclaimerKey, string> = {
+  const payload: { [key in DisclaimerKey]: string } = {
     general: state.general.trim(),
     self_harm: state.self_harm.trim(),
     child_abuse: state.child_abuse.trim(),
-  }
+  };
 
   (Object.keys(payload) as DisclaimerKey[]).forEach((key) => {
     if (!payload[key]) {
@@ -467,67 +522,29 @@ export default function SchoolSettingsPage() {
                 </div>
 
                 <div className="space-y-6">
-                  {[
-                    {
-                      title: 'Basic Information',
-                      fields: [
-                        { name: 'name', label: 'Name' },
-                        { name: 'slug', label: 'Slug', placeholder: 'url-friendly-name' },
-                      ],
-                    },
-                    {
-                      title: 'Address',
-                      fields: [
-                        { name: 'street_number', label: 'Street Number' },
-                        { name: 'street_name', label: 'Street Name' },
-                        { name: 'city', label: 'City' },
-                        { name: 'state', label: 'State' },
-                        { name: 'zip_code', label: 'ZIP Code' },
-                      ],
-                    },
-                    {
-                      title: 'Contact',
-                      fields: [
-                        { name: 'phone_number', label: 'Phone Number', placeholder: '+14155550123' },
-                        { name: 'office_extension', label: 'Office Extension' },
-                      ],
-                    },
-                    {
-                      title: 'Grades',
-                      fields: [
-                        { name: 'lower_grade', label: 'Lower Grade', type: 'number' },
-                        { name: 'upper_grade', label: 'Upper Grade', type: 'number' },
-                      ],
-                    },
-                    {
-                      title: 'SIS Integrations',
-                      fields: [
-                        { name: 'aeries_school_code', label: 'Aeries School Code' },
-                        { name: 'sis_source_id', label: 'SIS Source ID' },
-                        { name: 'sis_client_id', label: 'SIS Client ID' },
-                        { name: 'sis_client_secret', label: 'SIS Client Secret' },
-                      ],
-                    },
-                  ].map((group) => (
+                  {fieldGroups.map((group) => (
                     <div key={group.title} className="space-y-3">
                       <h4 className="text-base font-semibold">{group.title}</h4>
                       <div className="grid gap-4 md:grid-cols-2">
-                        {group.fields.map((field) => (
-                          <div key={field.name}>
-                            <Label htmlFor={field.name}>{field.label}</Label>
-                            <Input
-                              id={field.name}
-                              name={field.name}
-                              type={field.type ?? 'text'}
-                              value={formState[field.name as keyof OrganizationFormState]}
-                              placeholder={field.placeholder}
-                              onChange={(event) =>
-                                handleInputChange(field.name as keyof OrganizationFormState, event.target.value)
-                              }
-                              disabled={isSaving}
-                            />
-                          </div>
-                        ))}
+                        {group.fields.map((field) => {
+                          const fieldType = 'type' in field ? field.type : undefined
+                          return (
+                            <div key={field.name}>
+                              <Label htmlFor={field.name}>{field.label}</Label>
+                              <Input
+                                id={field.name}
+                                name={field.name}
+                                type={fieldType ?? 'text'}
+                                value={formState[field.name as keyof OrganizationFormState]}
+                                placeholder={field.placeholder}
+                                onChange={(event) =>
+                                  handleInputChange(field.name as keyof OrganizationFormState, event.target.value)
+                                }
+                                disabled={isSaving}
+                              />
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   ))}

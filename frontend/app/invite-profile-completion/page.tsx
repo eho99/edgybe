@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import apiClient from '@/lib/apiClient'
 import PhoneInput from 'react-phone-number-input'
@@ -29,7 +29,6 @@ import {
 
 export default function InviteProfileCompletionPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')

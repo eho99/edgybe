@@ -36,7 +36,9 @@ export function useCurrentUserRole() {
   )
 
   const isAdmin = useMemo(() => {
-    return orgData?.role === 'admin' || memberships?.some(m => m.role === 'admin')
+    return Boolean(
+      orgData?.role === 'admin' || memberships?.some(m => m.role === 'admin')
+    )
   }, [orgData, memberships])
 
   const currentRole = useMemo(() => {

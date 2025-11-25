@@ -12,9 +12,11 @@ export class ApiError extends Error {
  * A type-safe, client-side API client that automatically handles
  * Supabase auth and JSON request/response bodies.
  */
+type ApiClientOptions = Omit<RequestInit, 'body'> & { body?: BodyInit | Record<string, unknown> | object }
+
 const apiClient = async <T>(
     url: string,
-    options: RequestInit = {}
+    options: ApiClientOptions = {}
 ): Promise<T> => {
     const supabase = createClient()
 
@@ -32,9 +34,18 @@ const apiClient = async <T>(
     const headers = new Headers(options.headers || {})
     headers.set('Authorization', `Bearer ${token}`)
 
-    // Automatically stringify body and set Content-Type
-    if (options.body && typeof options.body === 'object') {
-        options.body = JSON.stringify(options.body)
+    const { body: originalBody, ...restOptions } = options
+
+    const shouldStringify =
+        originalBody &&
+        typeof originalBody === 'object' &&
+        !(originalBody instanceof FormData) &&
+        !(originalBody instanceof URLSearchParams)
+
+    let requestBody: BodyInit | null | undefined = originalBody as BodyInit | null | undefined
+
+    if (shouldStringify) {
+        requestBody = JSON.stringify(originalBody)
         if (!headers.has('Content-Type')) {
             headers.set('Content-Type', 'application/json')
         }
@@ -45,8 +56,9 @@ const apiClient = async <T>(
 
     try {
         response = await fetch(fullUrl, {
-            ...options,
+            ...restOptions,
             headers,
+            body: requestBody,
         })
     } catch (error) {
         // Handle network errors (e.g., failed to fetch)

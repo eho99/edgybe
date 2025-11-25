@@ -26,7 +26,7 @@ const templateSchema = z.object({
   is_active: z.boolean().default(true),
 })
 
-type TemplateFormValues = z.infer<typeof templateSchema>
+type TemplateFormValues = z.input<typeof templateSchema>
 
 interface CreateEmailTemplateFormProps {
   orgId: string

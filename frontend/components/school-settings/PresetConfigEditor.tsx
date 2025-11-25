@@ -47,7 +47,7 @@ export const createOptionEntry = (value = ''): PresetOptionEntry => ({
 export const createEntry = (
   key: string,
   config?: Partial<Omit<PresetConfigEntry, 'id' | 'key' | 'options'>> & { options?: PresetOptionEntry[] }
-) => ({
+): PresetConfigEntry => ({
   id: generateEntryId(),
   key,
   label: typeof config?.label === 'string' && config.label !== '' ? config.label : toTitleCase(key),
@@ -96,7 +96,11 @@ interface PresetConfigEditorProps {
 export const PresetConfigEditor = ({ entries, onChange, disabled }: PresetConfigEditorProps) => {
   const [newFieldKey, setNewFieldKey] = useState('')
   const hasDuplicateKey = useMemo(
-    () => newFieldKey && entries.some((entry) => entry.key.trim() === newFieldKey.trim()),
+    () =>
+      Boolean(
+        newFieldKey &&
+          entries.some((entry) => entry.key.trim() === newFieldKey.trim())
+      ),
     [entries, newFieldKey]
   )
 
