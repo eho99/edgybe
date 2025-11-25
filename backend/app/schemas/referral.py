@@ -12,6 +12,36 @@ class ReferralConfigResponse(BaseModel):
     common_interventions: List[str]
 
 
+class ReferralBreakdownItem(BaseModel):
+    label: str
+    count: int
+
+
+class ReferralRecentItem(BaseModel):
+    id: UUID4
+    type: str
+    status: str
+    location: Optional[str] = None
+    time_of_day: Optional[str] = None
+    behaviors: Optional[List[str]] = None
+    student_name: Optional[str] = None
+    student_student_id: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ReferralStatsResponse(BaseModel):
+    total_referrals: int
+    breakdown_by_location: List[ReferralBreakdownItem]
+    breakdown_by_time_of_day: List[ReferralBreakdownItem]
+    breakdown_by_behavior: List[ReferralBreakdownItem]
+    recent_referrals: List[ReferralRecentItem]
+    start_date: datetime
+    end_date: datetime
+
+
 # Referral schemas
 class ReferralCreate(BaseModel):
     student_id: UUID4

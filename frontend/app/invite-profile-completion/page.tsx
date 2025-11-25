@@ -32,6 +32,7 @@ export default function InviteProfileCompletionPage() {
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [phone, setPhone] = useState<string | undefined>('')
   const [streetNumber, setStreetNumber] = useState('')
   const [streetName, setStreetName] = useState('')
@@ -44,7 +45,7 @@ export default function InviteProfileCompletionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProcessingInvite, setIsProcessingInvite] = useState(true)
   const [inviteData, setInviteData] = useState<any>(null)
-  
+  const passwordInputType = showPassword ? 'text' : 'password'
   const supabase = createClient()
 
   useEffect(() => {
@@ -87,7 +88,7 @@ export default function InviteProfileCompletionPage() {
           
           if (setSessionError) {
             console.error('Error setting session:', setSessionError)
-            setError('Failed to authenticate. Please try again.')
+      setError('Failed to authenticate. Please try again.')
             setIsProcessingInvite(false)
             return
           }
@@ -196,13 +197,23 @@ export default function InviteProfileCompletionPage() {
 
     try {
       // Update the user's password in Supabase
-      const { error: passwordError } = await supabase.auth.updateUser({
-        password: password
-      })
-      
-      if (passwordError) {
-        throw new Error(`Failed to update password: ${passwordError.message}`)
-      }
+        const { error: passwordError } = await supabase.auth.updateUser({
+          password: password
+        })
+        
+        if (passwordError) {
+          const message = (passwordError.message ?? '').toLowerCase()
+          const isPasswordReuseError =
+            message.includes('different') ||
+            message.includes('same password') ||
+            message.includes('previous password')
+
+          if (!isPasswordReuseError) {
+            throw new Error(`Failed to update password: ${passwordError.message}`)
+          }
+
+          console.warn('Password reuse prevented by Supabase but continuing', passwordError.message)
+        }
 
       // Build profile update body, only including fields with values
       const profileData: Record<string, string> = {
@@ -254,8 +265,8 @@ export default function InviteProfileCompletionPage() {
 
   if (isProcessingInvite) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md p-6">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-10">
+        <Card className="w-full max-w-xl p-6">
           <CardContent className="flex flex-col items-center space-y-4">
             <Spinner className="w-8 h-8" />
             <p className="text-center">Processing your invitation...</p>
@@ -267,15 +278,15 @@ export default function InviteProfileCompletionPage() {
 
   if (error && !inviteData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md p-6">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-10">
+        <Card className="w-full max-w-xl p-6">
           <CardContent>
             <Alert variant="destructive">
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
-            <Button 
-              onClick={() => router.push('/login')} 
+            <Button
+              onClick={() => router.push('/login')}
               className="w-full mt-4"
             >
               Go to Login
@@ -287,212 +298,227 @@ export default function InviteProfileCompletionPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md p-0">
-        <CardHeader>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-10">
+      <Card className="w-full max-w-4xl p-0">
+        <CardHeader className="px-6 pt-6">
           <CardTitle>Welcome! Let&apos;s complete your profile.</CardTitle>
           <CardDescription>
             You&apos;ve been invited to join. Please fill out your profile information below.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit} autoComplete="off">
-          <CardContent>
-            <div className="space-y-6">
-              {/* Account Information */}
-            <div className="space-y-4">
+          <CardContent className="space-y-6 px-6 py-6">
+            <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
+              <div className="space-y-6">
                 <h3 className="text-lg font-semibold">Account Information</h3>
-                
-              <div>
-                  <Label htmlFor="fullName">Full Name *</Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g., Jane Doe"
-                  required
-                    autoComplete="name"
-                  disabled={isSubmitting}
-                    className="mt-1"
-                />
-              </div>
-              
-              <div>
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <div className="mt-1 [&_.PhoneInput]:flex [&_.PhoneInput]:items-center [&_.PhoneInput]:gap-2 [&_.PhoneInput]:w-full [&_.PhoneInputInput]:flex-1 [&_.PhoneInputInput]:h-10 [&_.PhoneInputInput]:w-full [&_.PhoneInputInput]:rounded-md [&_.PhoneInputInput]:border [&_.PhoneInputInput]:border-input [&_.PhoneInputInput]:bg-background [&_.PhoneInputInput]:px-3 [&_.PhoneInputInput]:py-2 [&_.PhoneInputInput]:text-sm [&_.PhoneInputInput]:ring-offset-background [&_.PhoneInputInput]:placeholder:text-muted-foreground [&_.PhoneInputInput]:focus-visible:outline-none [&_.PhoneInputInput]:focus-visible:ring-2 [&_.PhoneInputInput]:focus-visible:ring-ring [&_.PhoneInputInput]:focus-visible:ring-offset-2 [&_.PhoneInputInput]:disabled:cursor-not-allowed [&_.PhoneInputInput]:disabled:opacity-50 [&_.PhoneInputCountry]:mr-2 [&_.PhoneInputCountryIcon]:w-6 [&_.PhoneInputCountryIcon]:h-6 [&_.PhoneInputCountryIcon]:rounded [&_.PhoneInputCountrySelect]:px-2 [&_.PhoneInputCountrySelect]:py-1 [&_.PhoneInputCountrySelect]:text-sm [&_.PhoneInputCountrySelect]:rounded-md [&_.PhoneInputCountrySelect]:border [&_.PhoneInputCountrySelect]:border-input [&_.PhoneInputCountrySelect]:bg-background">
-                    <PhoneInput
-                      international
-                      defaultCountry="US"
-                      value={phone}
-                      onChange={(value) => setPhone(value ?? '')}
+
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="fullName">Full Name *</Label>
+                    <Input
+                      id="fullName"
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="e.g., Jane Doe"
+                      required
+                      autoComplete="name"
                       disabled={isSubmitting}
-                      id="phone"
-                      placeholder="Enter phone number"
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <div className="mt-1 [&_.PhoneInput]:flex [&_.PhoneInput]:items-center [&_.PhoneInput]:gap-2 [&_.PhoneInput]:w-full [&_.PhoneInputInput]:flex-1 [&_.PhoneInputInput]:h-10 [&_.PhoneInputInput]:w-full [&_.PhoneInputInput]:rounded-md [&_.PhoneInputInput]:border [&_.PhoneInputInput]:border-input [&_.PhoneInputInput]:bg-background [&_.PhoneInputInput]:px-3 [&_.PhoneInputInput]:py-2 [&_.PhoneInputInput]:text-sm [&_.PhoneInputInput]:ring-offset-background [&_.PhoneInputInput]:placeholder:text-muted-foreground [&_.PhoneInputInput]:focus-visible:outline-none [&_.PhoneInputInput]:focus-visible:ring-2 [&_.PhoneInputInput]:focus-visible:ring-ring [&_.PhoneInputInput]:focus-visible:ring-offset-2 [&_.PhoneInputInput]:disabled:cursor-not-allowed [&_.PhoneInputInput]:disabled:opacity-50 [&_.PhoneInputCountry]:mr-2 [&_.PhoneInputCountryIcon]:w-6 [&_.PhoneInputCountryIcon]:h-6 [&_.PhoneInputCountryIcon]:rounded [&_.PhoneInputCountrySelect]:px-2 [&_.PhoneInputCountrySelect]:py-1 [&_.PhoneInputCountrySelect]:text-sm [&_.PhoneInputCountrySelect]:rounded-md [&_.PhoneInputCountrySelect]:border [&_.PhoneInputCountrySelect]:border-input [&_.PhoneInputCountrySelect]:bg-background">
+                      <PhoneInput
+                        international
+                        defaultCountry="US"
+                        value={phone}
+                        onChange={(value) => setPhone(value ?? '')}
+                        disabled={isSubmitting}
+                        id="phone"
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="password">Password *</Label>
+                    <Input
+                      id="password"
+                      type={passwordInputType}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      required
+                      autoComplete="new-password"
+                      disabled={isSubmitting}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="confirmPassword">Confirm Password *</Label>
+                    <Input
+                      id="confirmPassword"
+                      type={passwordInputType}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm your password"
+                      required
+                      autoComplete="new-password"
+                      disabled={isSubmitting}
+                      className="mt-1"
                     />
                   </div>
                 </div>
-                
-                <div>
-                  <Label htmlFor="password">Password *</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  required
-                  autoComplete="new-password"
-                  disabled={isSubmitting}
-                    className="mt-1"
-                />
-              </div>
-              
-              <div>
-                  <Label htmlFor="confirmPassword">Confirm Password *</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm your password"
-                  required
-                  autoComplete="new-password"
-                  disabled={isSubmitting}
-                    className="mt-1"
-                />
+
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    id="showPassword"
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-input bg-background text-primary focus-visible:ring-ring"
+                    checked={showPassword}
+                    onChange={(e) => setShowPassword(e.target.checked)}
+                    disabled={isSubmitting}
+                  />
+                  <label htmlFor="showPassword" className="font-medium">
+                    Show password
+                  </label>
                 </div>
               </div>
 
-              {/* Address Information */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Address Information</h3>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="streetNumber">Street Number</Label>
-                    <Input
-                      id="streetNumber"
-                      type="text"
-                      value={streetNumber}
-                      onChange={(e) => setStreetNumber(e.target.value)}
-                      placeholder="123"
-                      autoComplete="address-line1"
-                      disabled={isSubmitting}
-                      className="mt-1"
-                    />
-                  </div>
-                  
-                  <div className="col-span-2">
-                    <Label htmlFor="streetName">Street Name</Label>
-                    <Input
-                      id="streetName"
-                      type="text"
-                      value={streetName}
-                      onChange={(e) => setStreetName(e.target.value)}
-                      placeholder="Main Street"
-                      autoComplete="address-line2"
-                      disabled={isSubmitting}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="city">City</Label>
-                    <Input
-                      id="city"
-                      type="text"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="Springfield"
-                      autoComplete="address-level2"
-                      disabled={isSubmitting}
-                      className="mt-1"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="state">State</Label>
-                    <Input
-                      id="state"
-                      type="text"
-                      value={state}
-                      onChange={(e) => setState(e.target.value)}
-                      placeholder="IL"
-                      autoComplete="address-level1"
-                      disabled={isSubmitting}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="zipCode">ZIP Code</Label>
-                    <Input
-                      id="zipCode"
-                      type="text"
-                      value={zipCode}
-                      onChange={(e) => setZipCode(e.target.value)}
-                      placeholder="62701"
-                      autoComplete="postal-code"
-                      disabled={isSubmitting}
-                      className="mt-1"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="country">Country</Label>
-                    <Input
-                      id="country"
-                      type="text"
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                      placeholder="United States"
-                      autoComplete="country-name"
-                      disabled={isSubmitting}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-              </div>
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Address Information</h3>
 
-              {/* Additional Information */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Additional Information</h3>
-                
-                <div>
-                  <Label htmlFor="preferredLanguage">Preferred Language</Label>
-                  <Select value={preferredLanguage} onValueChange={setPreferredLanguage} disabled={isSubmitting}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select a language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                      <SelectItem value="de">German</SelectItem>
-                      <SelectItem value="zh">Chinese</SelectItem>
-                      <SelectItem value="ja">Japanese</SelectItem>
-                      <SelectItem value="ko">Korean</SelectItem>
-                      <SelectItem value="ar">Arabic</SelectItem>
-                      <SelectItem value="pt">Portuguese</SelectItem>
-                      <SelectItem value="ru">Russian</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="streetNumber">Street Number</Label>
+                      <Input
+                        id="streetNumber"
+                        type="text"
+                        value={streetNumber}
+                        onChange={(e) => setStreetNumber(e.target.value)}
+                        placeholder="123"
+                        autoComplete="address-line1"
+                        disabled={isSubmitting}
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div className="col-span-2">
+                      <Label htmlFor="streetName">Street Name</Label>
+                      <Input
+                        id="streetName"
+                        type="text"
+                        value={streetName}
+                        onChange={(e) => setStreetName(e.target.value)}
+                        placeholder="Main Street"
+                        autoComplete="address-line2"
+                        disabled={isSubmitting}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        type="text"
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        placeholder="Springfield"
+                        autoComplete="address-level2"
+                        disabled={isSubmitting}
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="state">State</Label>
+                      <Input
+                        id="state"
+                        type="text"
+                        value={state}
+                        onChange={(e) => setState(e.target.value)}
+                        placeholder="IL"
+                        autoComplete="address-level1"
+                        disabled={isSubmitting}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="zipCode">ZIP Code</Label>
+                      <Input
+                        id="zipCode"
+                        type="text"
+                        value={zipCode}
+                        onChange={(e) => setZipCode(e.target.value)}
+                        placeholder="62701"
+                        autoComplete="postal-code"
+                        disabled={isSubmitting}
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="country">Country</Label>
+                      <Input
+                        id="country"
+                        type="text"
+                        value={country}
+                        onChange={(e) => setCountry(e.target.value)}
+                        placeholder="United States"
+                        autoComplete="country-name"
+                        disabled={isSubmitting}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Additional Information</h3>
+
+                  <div>
+                    <Label htmlFor="preferredLanguage">Preferred Language</Label>
+                    <Select value={preferredLanguage} onValueChange={setPreferredLanguage} disabled={isSubmitting}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select a language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="es">Spanish</SelectItem>
+                        <SelectItem value="fr">French</SelectItem>
+                        <SelectItem value="de">German</SelectItem>
+                        <SelectItem value="zh">Chinese</SelectItem>
+                        <SelectItem value="ja">Japanese</SelectItem>
+                        <SelectItem value="ko">Korean</SelectItem>
+                        <SelectItem value="ar">Arabic</SelectItem>
+                        <SelectItem value="pt">Portuguese</SelectItem>
+                        <SelectItem value="ru">Russian</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
-              
-              {error && (
-                <Alert variant="destructive">
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
             </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
           </CardContent>
-          <CardFooter>
+          <CardFooter className="px-6 pb-6">
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
