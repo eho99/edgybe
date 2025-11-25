@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useProfile } from '@/hooks/useProfile' // The hook we just created
 import { createClient } from '@/lib/supabase/client' // My existing Supabase client
@@ -15,15 +15,16 @@ export default function AppLayout({
   const supabase = createClient()
   const { profile, isLoading, isError } = useProfile()
 
-  console.log('[AppLayout] State:', {
-    pathname,
-    isLoading,
-    isError,
-    profile,
-  });
-  if (isError) {
-    console.error('[AppLayout] Profile fetch error:', isError);
-  }
+  const needsProfileCompletion = useMemo(() => {
+    if (!profile) {
+      return false
+    }
+
+    const missingFullName = !profile.full_name || !profile.full_name.trim()
+    const missingEmail = !profile.email || !profile.email.trim()
+
+    return missingFullName || missingEmail
+  }, [profile])
 
   useEffect(() => {
     const checkSession = async () => {
@@ -35,23 +36,20 @@ export default function AppLayout({
         return
       }
 
-      // Wait for profile loading to settle
-      if (!isLoading) {
-        // If profile loading resulted in an error, redirect to completion page
-        if (isError && pathname !== '/invite-profile-completion') {
-          console.log('[AppLayout] Profile fetch error, redirecting to invite-profile-completion')
-          router.push('/invite-profile-completion')
-        }
-        // If profile is loaded and incomplete, redirect to completion page
-        else if (profile && !profile.has_completed_profile && pathname !== '/invite-profile-completion') {
-          console.log('[AppLayout] Profile incomplete, redirecting to invite-profile-completion')
-          router.push('/invite-profile-completion')
-        }
-        // If profile is complete and we are on the completion page, go to dashboard
-        else if (profile && profile.has_completed_profile && pathname === '/invite-profile-completion') {
-          console.log('[AppLayout] Profile complete, redirecting to dashboard')
-          router.push('/dashboard')
-        }
+      if (isLoading || isError) {
+        return
+      }
+
+      if (!profile) {
+        return
+      }
+
+      if (needsProfileCompletion && pathname !== '/invite-profile-completion') {
+        console.log('[AppLayout] Missing required profile fields, redirecting to invite-profile-completion')
+        router.push('/invite-profile-completion')
+      } else if (!needsProfileCompletion && pathname === '/invite-profile-completion') {
+        console.log('[AppLayout] Required profile fields present, redirecting to dashboard')
+        router.push('/dashboard')
       }
     }
 
@@ -68,11 +66,15 @@ export default function AppLayout({
     return () => {
       subscription?.unsubscribe()
     }
-  }, [router, supabase, profile, isLoading, isError, pathname])
+  }, [router, supabase, profile, needsProfileCompletion, isLoading, isError, pathname])
 
   // While profile is loading, show a spinner.
   if (isLoading) {
     return <div>Loading user data...</div>
+  }
+
+  if (isError) {
+    return <div>We couldn&apos;t load your profile. Please refresh.</div>
   }
 
   // If we are on the invite-profile-completion page, just render it.
@@ -81,8 +83,7 @@ export default function AppLayout({
     return <>{children}</>
   }
 
-  // If profile is loaded AND completed, show the main app.
-  if (profile && profile.has_completed_profile) {
+  if (profile && !needsProfileCompletion) {
     return (
       <main>
         {/* My main app nav/sidebar would go here */}
@@ -91,8 +92,7 @@ export default function AppLayout({
     )
   }
 
-  // If profile is loaded but incomplete, show completion page
-  if (profile && !profile.has_completed_profile) {
+  if (profile && needsProfileCompletion) {
     return <>{children}</>
   }
 

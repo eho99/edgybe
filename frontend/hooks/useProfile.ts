@@ -1,11 +1,12 @@
-import useSWR from 'swr'
+import useSWR, { KeyedMutator } from 'swr'
 import apiClient from '@/lib/apiClient' // My existing API client
 
 // This is the shape of the data from backend/app/schemas.py -> ProfileSchema
-interface Profile {
+export interface UserProfile {
     id: string;
     full_name: string | null;
     has_completed_profile: boolean;
+    email: string | null;
     phone: string | null;
     street_number: string | null;
     street_name: string | null;
@@ -20,8 +21,15 @@ interface Profile {
     updated_at: string;
 }
 
-export function useProfile() {
-    const { data, error, isLoading, mutate } = useSWR<Profile>(
+interface UseProfileResult {
+    profile: UserProfile | undefined;
+    isLoading: boolean;
+    isError: unknown;
+    mutateProfile: KeyedMutator<UserProfile>;
+}
+
+export function useProfile(): UseProfileResult {
+    const { data, error, isLoading, mutate } = useSWR<UserProfile>(
         '/api/v1/users/me/profile', // The backend endpoint
         apiClient, // Pass apiClient directly to SWR
         {

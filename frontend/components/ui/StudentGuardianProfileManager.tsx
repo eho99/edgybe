@@ -53,6 +53,7 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
   const [isLoading, setIsLoading] = useState(true)
   const [editingProfile, setEditingProfile] = useState<ProfileRecord | null>(null)
   const [formState, setFormState] = useState<Partial<ProfileRecord>>({})
+  const [archivingProfileId, setArchivingProfileId] = useState<string | null>(null)
   const { handleError } = useErrorHandler()
   const { toast } = useToast()
 
@@ -145,6 +146,36 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
       fetchProfiles()
     } catch (err) {
       handleError(err, { title: 'Failed to update profile' })
+    }
+  }
+
+  const handleArchiveProfile = async (profile: ProfileRecord) => {
+    const entity = isStudentTab ? 'student' : 'guardian'
+    const profileName = profile.full_name || profile.email || 'Profile'
+    const confirmed = window.confirm(
+      `Archive the ${entity} ${profileName}? This will hide the account from the active list.`
+    )
+
+    if (!confirmed) return
+
+    try {
+      setArchivingProfileId(profile.id)
+      await apiClient(
+        `/api/v1/organizations/${orgId}/${isStudentTab ? 'students' : 'guardians'}/${profile.id}`,
+        {
+          method: 'DELETE'
+        }
+      )
+      toast({
+        variant: 'success',
+        title: `${entity.charAt(0).toUpperCase() + entity.slice(1)} archived`,
+        description: `${profileName} has been archived.`
+      })
+      fetchProfiles()
+    } catch (err) {
+      handleError(err, { title: 'Failed to archive profile' })
+    } finally {
+      setArchivingProfileId(null)
     }
   }
 
@@ -242,9 +273,23 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
                       </TableCell>
                       <TableCell>{profile.preferred_language ?? '—'}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => startEditing(profile)}>
-                          Edit
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => startEditing(profile)}>
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleArchiveProfile(profile)}
+                            disabled={archivingProfileId === profile.id}
+                          >
+                            {archivingProfileId === profile.id ? (
+                              <Loader size="sm" />
+                            ) : (
+                              'Archive'
+                            )}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                     {isEditing && (

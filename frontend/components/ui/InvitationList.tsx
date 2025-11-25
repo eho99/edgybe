@@ -62,9 +62,10 @@ interface InvitationStats {
 
 interface InvitationListProps {
   orgId: string
+  refreshTrigger?: number
 }
 
-export function InvitationList({ orgId }: InvitationListProps) {
+export function InvitationList({ orgId, refreshTrigger }: InvitationListProps) {
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [stats, setStats] = useState<InvitationStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -141,7 +142,7 @@ export function InvitationList({ orgId }: InvitationListProps) {
 
   useEffect(() => {
     fetchInvitations()
-  }, [orgId, page, search, statusFilter])
+  }, [orgId, page, search, statusFilter, refreshTrigger])
 
   const getStatusBadge = (status: string) => {
     const variants = {

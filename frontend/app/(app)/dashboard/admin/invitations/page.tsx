@@ -1,5 +1,7 @@
 "use client"
 
+import { useCallback, useState } from "react"
+import { InviteMemberForm } from "@/components/ui/InviteMemberForm"
 import { useCurrentUserRole } from "@/hooks/useCurrentUserRole"
 import { InvitationList } from "@/components/ui/InvitationList"
 import { PageLoader } from "@/components/ui/page-loader"
@@ -7,7 +9,12 @@ import { ErrorDisplay } from "@/components/error/ErrorDisplay"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function InvitationsPage() {
+  const [refreshKey, setRefreshKey] = useState(0)
   const { orgId, role, isLoading, error } = useCurrentUserRole()
+
+  const handleInviteSuccess = useCallback(() => {
+    setRefreshKey((prev) => prev + 1)
+  }, [])
 
   if (isLoading) {
     return <PageLoader text="Loading invitations..." />
@@ -50,13 +57,25 @@ export default function InvitationsPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Invitation Management</CardTitle>
+          <CardTitle>Invite Internal Users</CardTitle>
           <CardDescription>
-            View, resend, and cancel invitations for your organization.
+            Enter an email and select a role (admin, secretary, or staff) to send an invitation.
+            Bulk and CSV uploads are supported too.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <InvitationList orgId={orgId} />
+          <InviteMemberForm orgId={orgId} onSuccess={handleInviteSuccess} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Invitation Management</CardTitle>
+          <CardDescription>
+            View, resend, and cancel pending invitations across your organization.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <InvitationList orgId={orgId} refreshTrigger={refreshKey} />
         </CardContent>
       </Card>
     </div>
