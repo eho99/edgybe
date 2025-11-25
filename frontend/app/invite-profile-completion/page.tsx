@@ -50,12 +50,7 @@ export default function InviteProfileCompletionPage() {
 
   useEffect(() => {
     const handleInvitationCallback = async () => {
-      try {
-        console.log('=== INVITATION CALLBACK HANDLER ===')
-        console.log('Current URL:', window.location.href)
-        console.log('Search params:', window.location.search)
-        console.log('Hash:', window.location.hash)
-        
+      try {        
         // Parse URL parameters
         const urlParams = new URLSearchParams(window.location.search)
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
@@ -65,14 +60,7 @@ export default function InviteProfileCompletionPage() {
         const refreshToken = hashParams.get('refresh_token')
         const error = hashParams.get('error') || urlParams.get('error')
         
-        console.log('Auth tokens found:', { 
-          hasAccessToken: !!accessToken, 
-          hasRefreshToken: !!refreshToken,
-          error 
-        })
-        
         if (error) {
-          console.error('Auth error:', error)
           setError(`Authentication error: ${error}`)
           setIsProcessingInvite(false)
           return
@@ -80,47 +68,32 @@ export default function InviteProfileCompletionPage() {
         
         // If we have tokens in hash, set the session
         if (accessToken && refreshToken) {
-          console.log('Setting session from hash tokens...')
           const { data, error: setSessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           })
           
           if (setSessionError) {
-            console.error('Error setting session:', setSessionError)
-      setError('Failed to authenticate. Please try again.')
+            setError('Failed to authenticate. Please try again.')
             setIsProcessingInvite(false)
             return
           }
           
           if (data.session && data.user) {
-            console.log('✅ Session set successfully for user:', data.user.email)
             setInviteData(data.user)
             setIsProcessingInvite(false)
             return
           }
         }
         
-        // If no tokens in hash, wait for session to be created by Supabase
-        console.log('No tokens in hash, waiting for Supabase to create session...')
-        
         let sessionFound = false
         let attempts = 0
         const maxAttempts = 10
         
         while (!sessionFound && attempts < maxAttempts) {
-          console.log(`Checking for session (attempt ${attempts + 1}/${maxAttempts})...`)
-          
           const { data: { session }, error: sessionError } = await supabase.auth.getSession()
           
-          console.log('Session check result:', { 
-            hasSession: !!session, 
-            error: sessionError?.message,
-            userEmail: session?.user?.email 
-          })
-          
           if (session && session.user) {
-            console.log('✅ Session found for user:', session.user.email)
             setInviteData(session.user)
             setIsProcessingInvite(false)
             sessionFound = true
@@ -133,12 +106,8 @@ export default function InviteProfileCompletionPage() {
         }
         
         // Listen for auth state changes as a fallback
-        console.log('Setting up auth state change listener...')
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-          console.log('Auth state change:', event, session?.user?.email)
-          
           if (event === 'SIGNED_IN' && session && session.user) {
-            console.log('✅ User signed in via auth state change:', session.user.email)
             setInviteData(session.user)
             setIsProcessingInvite(false)
             subscription?.unsubscribe()
@@ -148,7 +117,6 @@ export default function InviteProfileCompletionPage() {
         // If we still haven't found a session after waiting, show error
         setTimeout(() => {
           if (!sessionFound) {
-            console.log('❌ No session found after waiting')
             setError('Unable to process invitation. Please try clicking the invitation link again.')
             setIsProcessingInvite(false)
             subscription?.unsubscribe()
@@ -156,7 +124,6 @@ export default function InviteProfileCompletionPage() {
         }, 5000)
         
       } catch (err) {
-        console.error('Error in invitation callback handler:', err)
         setError('Failed to process invitation. Please try again.')
         setIsProcessingInvite(false)
       }
@@ -211,8 +178,6 @@ export default function InviteProfileCompletionPage() {
           if (!isPasswordReuseError) {
             throw new Error(`Failed to update password: ${passwordError.message}`)
           }
-
-          console.warn('Password reuse prevented by Supabase but continuing', passwordError.message)
         }
 
       // Build profile update body, only including fields with values
@@ -256,7 +221,6 @@ export default function InviteProfileCompletionPage() {
       router.push('/dashboard')
 
     } catch (err: any) {
-      console.error('Profile completion error:', err)
       setError(err.message || 'Failed to complete profile. Please try again.')
     } finally {
       setIsSubmitting(false)

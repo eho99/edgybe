@@ -1169,3 +1169,53 @@ def test_update_guardian_profile(client: TestClient, db_session):
     assert data["full_name"] == "Updated Guardian"
     assert data["phone"] == "tel:+1-415-555-0001"
     assert data["country"] == "USA"
+
+
+def test_archive_student_profile(client: TestClient, db_session):
+    """Admin can archive a student profile."""
+    url = f"/api/v1/organizations/{mock_org_uuid}/students/{mock_student_uuid}"
+    response = client.delete(url)
+
+    assert response.status_code == 200
+    assert "archived" in response.json().get("message", "").lower()
+
+    profile = db_session.query(Profile).filter(Profile.id == mock_student_uuid).first()
+    assert profile is not None
+    assert profile.is_active is False
+
+    member = db_session.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == mock_org_uuid,
+        OrganizationMember.user_id == mock_student_uuid,
+        OrganizationMember.role == OrgRole.student
+    ).first()
+    assert member is not None
+    assert member.status == MemberStatus.inactive
+
+    list_response = client.get(f"/api/v1/organizations/{mock_org_uuid}/students")
+    assert list_response.status_code == 200
+    assert all(p["id"] != str(mock_student_uuid) for p in list_response.json()["profiles"])
+
+
+def test_archive_guardian_profile(client: TestClient, db_session):
+    """Admin can archive a guardian profile."""
+    url = f"/api/v1/organizations/{mock_org_uuid}/guardians/{mock_guardian_uuid}"
+    response = client.delete(url)
+
+    assert response.status_code == 200
+    assert "archived" in response.json().get("message", "").lower()
+
+    profile = db_session.query(Profile).filter(Profile.id == mock_guardian_uuid).first()
+    assert profile is not None
+    assert profile.is_active is False
+
+    member = db_session.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == mock_org_uuid,
+        OrganizationMember.user_id == mock_guardian_uuid,
+        OrganizationMember.role == OrgRole.guardian
+    ).first()
+    assert member is not None
+    assert member.status == MemberStatus.inactive
+
+    list_response = client.get(f"/api/v1/organizations/{mock_org_uuid}/guardians")
+    assert list_response.status_code == 200
+    assert all(p["id"] != str(mock_guardian_uuid) for p in list_response.json()["profiles"])

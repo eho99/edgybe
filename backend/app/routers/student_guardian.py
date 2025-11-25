@@ -30,6 +30,11 @@ def _list_profiles(
     ).filter(
         models.OrganizationMember.organization_id == org_id,
         models.OrganizationMember.role == role,
+    ).filter(
+        or_(
+            models.Profile.is_active.is_(None),
+            models.Profile.is_active.is_(True),
+        )
     )
 
     if search:
@@ -293,6 +298,38 @@ async def update_guardian_profile(
     db.commit()
     db.refresh(profile)
     return profile
+
+
+@router.delete("/students/{student_id}")
+async def archive_student_profile(
+    org_id: UUID4,
+    student_id: UUID4,
+    db: Session = Depends(get_db),
+    admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role),
+):
+    """
+    Archive (inactivate) a student profile and membership.
+    Only Admins can perform this action.
+    """
+    service = services.StudentGuardianService(db)
+    service.archive_profile(org_id, student_id, models.OrgRole.student)
+    return {"message": "Student archived successfully"}
+
+
+@router.delete("/guardians/{guardian_id}")
+async def archive_guardian_profile(
+    org_id: UUID4,
+    guardian_id: UUID4,
+    db: Session = Depends(get_db),
+    admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role),
+):
+    """
+    Archive (inactivate) a guardian profile and membership.
+    Only Admins can perform this action.
+    """
+    service = services.StudentGuardianService(db)
+    service.archive_profile(org_id, guardian_id, models.OrgRole.guardian)
+    return {"message": "Guardian archived successfully"}
 
 @router.post("/students/bulk", response_model=schemas.BulkCreateResponse)
 async def bulk_create_students(

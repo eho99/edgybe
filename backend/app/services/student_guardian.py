@@ -406,6 +406,39 @@ class StudentGuardianService:
         self.db.refresh(member)
         
         return profile, member
+
+    def archive_profile(
+        self,
+        org_id: UUID,
+        profile_id: UUID,
+        role: models.OrgRole
+    ) -> models.Profile:
+        """
+        Archive the profile and membership for a student or guardian.
+        """
+        profile = self.db.query(models.Profile).filter(models.Profile.id == profile_id).first()
+        if not profile:
+            raise HTTPException(status_code=404, detail="Profile not found")
+
+        memberships = self.db.query(models.OrganizationMember).filter(
+            models.OrganizationMember.organization_id == org_id,
+            models.OrganizationMember.user_id == profile_id,
+            models.OrganizationMember.role == role,
+        ).all()
+
+        if not memberships:
+            raise HTTPException(
+                status_code=404,
+                detail=f"{role.value.capitalize()} not found in this organization"
+            )
+
+        profile.is_active = False
+        for membership in memberships:
+            membership.status = models.MemberStatus.inactive
+
+        self.db.commit()
+        self.db.refresh(profile)
+        return profile
     
     def bulk_create_students(
         self,
