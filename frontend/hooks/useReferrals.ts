@@ -11,6 +11,7 @@ export interface ReferralFieldConfig {
     helpText?: string
     required?: boolean
     selection?: ReferralFieldSelection
+    allowOther?: boolean
 }
 
 export interface ReferralConfig {

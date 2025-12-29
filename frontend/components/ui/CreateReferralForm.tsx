@@ -31,10 +31,11 @@ type ReferralFormState = {
   student_id: string
   type: string
   location: string
-  location_custom: string
+  location_other: string
   time_of_day: string
-  time_of_day_custom: string
+  time_of_day_other: string
   behaviors: string[]
+  behaviors_other: string
   description: string
 }
 
@@ -42,10 +43,11 @@ const createEmptyFormState = (): ReferralFormState => ({
   student_id: '',
   type: '',
   location: '',
-  location_custom: '',
+  location_other: '',
   time_of_day: '',
-  time_of_day_custom: '',
+  time_of_day_other: '',
   behaviors: [],
+  behaviors_other: '',
   description: '',
 })
 
@@ -55,6 +57,7 @@ type NormalizedFieldConfig = {
   required: boolean
   selection: ReferralFieldSelection
   options: string[]
+  allowOther: boolean
 }
 
 const normalizeFieldConfig = (
@@ -69,6 +72,7 @@ const normalizeFieldConfig = (
     required: Boolean(field?.required),
     selection: field?.selection === 'multi' ? 'multi' : fallback.selection ?? 'single',
     options,
+    allowOther: Boolean(field?.allowOther),
   }
 }
 
@@ -199,23 +203,29 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
         description: formData.description || undefined,
       }
 
-      // Handle location (use custom if "Other" selected)
-      if (formData.location === 'Other') {
-        payload.location = formData.location_custom
-      } else if (formData.location) {
+      // Handle location (use other text if "Other" selected)
+      if (formData.location === 'Other' && formData.location_other.trim()) {
+        payload.location = formData.location_other.trim()
+      } else if (formData.location && formData.location !== 'Other') {
         payload.location = formData.location
       }
 
-      // Handle time_of_day (use custom if "Other" selected)
-      if (formData.time_of_day === 'Other') {
-        payload.time_of_day = formData.time_of_day_custom
-      } else if (formData.time_of_day) {
+      // Handle time_of_day (use other text if "Other" selected)
+      if (formData.time_of_day === 'Other' && formData.time_of_day_other.trim()) {
+        payload.time_of_day = formData.time_of_day_other.trim()
+      } else if (formData.time_of_day && formData.time_of_day !== 'Other') {
         payload.time_of_day = formData.time_of_day
       }
 
-      // Add behaviors if any selected
-      if (formData.behaviors.length > 0) {
-        payload.behaviors = formData.behaviors
+      // Handle behaviors - include "Other" text if behaviors_other is set
+      const behaviorValues = [...formData.behaviors]
+      if (behaviorValues.includes('Other') && formData.behaviors_other.trim()) {
+        // Replace "Other" with the custom text
+        const otherIndex = behaviorValues.indexOf('Other')
+        behaviorValues[otherIndex] = formData.behaviors_other.trim()
+      }
+      if (behaviorValues.length > 0) {
+        payload.behaviors = behaviorValues.filter((b) => b !== 'Other' || formData.behaviors_other.trim())
       }
 
       // Create referral
@@ -357,7 +367,7 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
                 setFormData((prev) => ({
                   ...prev,
                   location: value,
-                  location_custom: value === 'Other' ? prev.location_custom : '',
+                  location_other: value === 'Other' ? prev.location_other : '',
                 }))
               }
             >
@@ -366,11 +376,16 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
               </SelectTrigger>
               <SelectContent>
                 {locationField.options.length > 0 ? (
-                  locationField.options.map((location) => (
-                    <SelectItem key={location} value={location}>
-                      {location}
-                    </SelectItem>
-                  ))
+                  <>
+                    {locationField.options.map((location) => (
+                      <SelectItem key={location} value={location}>
+                        {location}
+                      </SelectItem>
+                    ))}
+                    {locationField.allowOther && (
+                      <SelectItem value="Other">Other</SelectItem>
+                    )}
+                  </>
                 ) : (
                   <div className="px-2 py-1 text-sm text-muted-foreground">
                     No locations available
@@ -378,12 +393,12 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
                 )}
               </SelectContent>
             </Select>
-              {formData.location === 'Other' && (
+            {formData.location === 'Other' && locationField.allowOther && (
               <Input
                 placeholder="Specify location"
-                value={formData.location_custom}
+                value={formData.location_other}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, location_custom: e.target.value }))
+                  setFormData((prev) => ({ ...prev, location_other: e.target.value }))
                 }
                 className="mt-2"
               />
@@ -407,7 +422,7 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
                 setFormData((prev) => ({
                   ...prev,
                   time_of_day: value,
-                  time_of_day_custom: value === 'Other' ? prev.time_of_day_custom : '',
+                  time_of_day_other: value === 'Other' ? prev.time_of_day_other : '',
                 }))
               }
             >
@@ -416,11 +431,16 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
               </SelectTrigger>
               <SelectContent>
                 {timeOfDayField.options.length > 0 ? (
-                  timeOfDayField.options.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))
+                  <>
+                    {timeOfDayField.options.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                    {timeOfDayField.allowOther && (
+                      <SelectItem value="Other">Other</SelectItem>
+                    )}
+                  </>
                 ) : (
                   <div className="px-2 py-1 text-sm text-muted-foreground">
                     No time of day options available
@@ -428,12 +448,12 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
                 )}
               </SelectContent>
             </Select>
-            {formData.time_of_day === 'Other' && (
+            {formData.time_of_day === 'Other' && timeOfDayField.allowOther && (
               <Input
                 placeholder="Specify time"
-                value={formData.time_of_day_custom}
+                value={formData.time_of_day_other}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, time_of_day_custom: e.target.value }))
+                  setFormData((prev) => ({ ...prev, time_of_day_other: e.target.value }))
                 }
                 className="mt-2"
               />
@@ -453,27 +473,54 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
             </div>
             <div className="grid grid-cols-2 gap-3">
               {behaviorsField.options.length > 0 ? (
-                behaviorsField.options.map((behavior) => (
-                <div key={behavior} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`behavior-${behavior}`}
-                    checked={formData.behaviors.includes(behavior)}
-                    onCheckedChange={() => handleBehaviorToggle(behavior)}
-                  />
-                  <label
-                    htmlFor={`behavior-${behavior}`}
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    {behavior}
-                  </label>
-                </div>
-              ))
+                <>
+                  {behaviorsField.options.map((behavior) => (
+                    <div key={behavior} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`behavior-${behavior}`}
+                        checked={formData.behaviors.includes(behavior)}
+                        onCheckedChange={() => handleBehaviorToggle(behavior)}
+                      />
+                      <label
+                        htmlFor={`behavior-${behavior}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {behavior}
+                      </label>
+                    </div>
+                  ))}
+                  {behaviorsField.allowOther && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="behavior-Other"
+                        checked={formData.behaviors.includes('Other')}
+                        onCheckedChange={() => handleBehaviorToggle('Other')}
+                      />
+                      <label
+                        htmlFor="behavior-Other"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Other
+                      </label>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="col-span-2 text-sm text-muted-foreground">
                   No behaviors available
                 </div>
               )}
             </div>
+            {formData.behaviors.includes('Other') && behaviorsField.allowOther && (
+              <Input
+                placeholder="Specify behavior"
+                value={formData.behaviors_other}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, behaviors_other: e.target.value }))
+                }
+                className="mt-2"
+              />
+            )}
           </div>
 
           {/* Description */}

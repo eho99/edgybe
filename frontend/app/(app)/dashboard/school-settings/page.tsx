@@ -15,6 +15,8 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Eye } from 'lucide-react'
 import { ApiError } from '@/lib/apiClient'
 import { cn } from '@/lib/utils'
 import {
@@ -24,6 +26,7 @@ import {
   createOptionEntry,
   validatePresetConfigEntries,
 } from '@/components/school-settings/PresetConfigEditor'
+import { FormPreview } from '@/components/school-settings/FormPreview'
 import type { ReferralFieldSelection } from '@/hooks/useReferrals'
 
 type OrganizationFormState = {
@@ -215,6 +218,7 @@ const convertPresetConfigToEntries = (presetConfig: Record<string, unknown> | nu
           helpText: typeof record.helpText === 'string' ? record.helpText : undefined,
           required: Boolean(record.required),
           selection,
+          allowOther: Boolean(record.allowOther || record.allow_other),
           options: optionStrings.length ? optionStrings.map((option) => createOptionEntry(option)) : undefined,
         })
       )
@@ -267,6 +271,7 @@ const buildPresetConfigPayload = (entries: PresetConfigEntry[]) => {
       helpText: helpText || undefined,
       required: entry.required || undefined,
       selection: entry.selection,
+      allowOther: entry.allowOther || undefined,
       options,
     }
 
@@ -275,6 +280,9 @@ const buildPresetConfigPayload = (entries: PresetConfigEntry[]) => {
     }
     if (!entry.required) {
       delete (payload[trimmedKey] as Record<string, unknown>).required
+    }
+    if (!entry.allowOther) {
+      delete (payload[trimmedKey] as Record<string, unknown>).allowOther
     }
   }
 
@@ -310,6 +318,7 @@ export default function SchoolSettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
   const adminOrganizations = useMemo(
     () => (organizations ?? []).filter((org) => org.role === 'admin'),
@@ -486,95 +495,122 @@ export default function SchoolSettingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-muted">
-          <CardHeader>
-            <CardTitle>{selectedOrg?.name ?? 'Select an organization'}</CardTitle>
-            <CardDescription>
-              {selectedOrg ? 'Changes sync across the referral experience immediately.' : 'Choose an organization first.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {selectedOrg && (
-              <>
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Summary</h3>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <SummaryItem label='District Name' value={selectedOrg.district_name ?? '—'} />
-                    <SummaryItem label='Phone' value={selectedOrg.phone_number ?? '—'} />
-                    <SummaryItem
-                      label='Address'
-                      value={[selectedOrg.street_number, selectedOrg.street_name].filter(Boolean).join(' ') || '—'}
-                    />
-                    <SummaryItem
-                      label='Location'
-                      value={[selectedOrg.city, selectedOrg.state, selectedOrg.zip_code].filter(Boolean).join(', ') || '—'}
-                    />
-                    <SummaryItem
-                      label='Grades'
-                      value={
-                        selectedOrg.lower_grade !== null || selectedOrg.upper_grade !== null
-                          ? `${selectedOrg.lower_grade ?? '—'} - ${selectedOrg.upper_grade ?? '—'}`
-                          : '—'
-                      }
-                    />
-                    <SummaryItem label='Aeries Code' value={selectedOrg.aeries_school_code ?? '—'} />
+        <div className="space-y-6">
+          {selectedOrg ? (
+            <>
+              {/* Card 1: School Profile */}
+              <Card className="border-muted">
+                <CardHeader>
+                  <CardTitle>School Profile</CardTitle>
+                  <CardDescription>
+                    Basic information, contact details, and administrative settings for {selectedOrg.name}.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Quick Summary</h3>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <SummaryItem label='District Name' value={selectedOrg.district_name ?? '—'} />
+                      <SummaryItem label='Phone' value={selectedOrg.phone_number ?? '—'} />
+                      <SummaryItem
+                        label='Address'
+                        value={[selectedOrg.street_number, selectedOrg.street_name].filter(Boolean).join(' ') || '—'}
+                      />
+                      <SummaryItem
+                        label='Location'
+                        value={[selectedOrg.city, selectedOrg.state, selectedOrg.zip_code].filter(Boolean).join(', ') || '—'}
+                      />
+                      <SummaryItem
+                        label='Grades'
+                        value={
+                          selectedOrg.lower_grade !== null || selectedOrg.upper_grade !== null
+                            ? `${selectedOrg.lower_grade ?? '—'} - ${selectedOrg.upper_grade ?? '—'}`
+                            : '—'
+                        }
+                      />
+                      <SummaryItem label='Aeries Code' value={selectedOrg.aeries_school_code ?? '—'} />
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-6">
-                  {fieldGroups.map((group) => (
-                    <div key={group.title} className="space-y-3">
-                      <h4 className="text-base font-semibold">{group.title}</h4>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {group.fields.map((field) => {
-                          const fieldType = 'type' in field ? field.type : undefined
-                          return (
-                            <div key={field.name}>
-                              <Label htmlFor={field.name}>{field.label}</Label>
-                              <Input
-                                id={field.name}
-                                name={field.name}
-                                type={fieldType ?? 'text'}
-                                value={formState[field.name as keyof OrganizationFormState]}
-                                placeholder={field.placeholder}
-                                onChange={(event) =>
-                                  handleInputChange(field.name as keyof OrganizationFormState, event.target.value)
-                                }
-                                disabled={isSaving}
-                              />
-                            </div>
-                          )
-                        })}
+                  <div className="border-t pt-6 space-y-6">
+                    {fieldGroups.map((group) => (
+                      <div key={group.title} className="space-y-3">
+                        <h4 className="text-base font-semibold">{group.title}</h4>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {group.fields.map((field) => {
+                            const fieldType = 'type' in field ? field.type : undefined
+                            return (
+                              <div key={field.name}>
+                                <Label htmlFor={field.name}>{field.label}</Label>
+                                <Input
+                                  id={field.name}
+                                  name={field.name}
+                                  type={fieldType ?? 'text'}
+                                  value={formState[field.name as keyof OrganizationFormState]}
+                                  placeholder={field.placeholder}
+                                  onChange={(event) =>
+                                    handleInputChange(field.name as keyof OrganizationFormState, event.target.value)
+                                  }
+                                  disabled={isSaving}
+                                />
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-
-                  <div className="space-y-3">
-                    <h4 className="text-base font-semibold">Form Config (JSON)</h4>
-                    <Textarea
-                      value={formState.form_config}
-                      onChange={(event) => handleInputChange('form_config', event.target.value)}
-                      className={`${textareaClass} font-mono text-xs`}
-                      rows={10}
-                      disabled={isSaving}
-                    />
+                    ))}
                   </div>
+                </CardContent>
+              </Card>
 
-                  <div className="space-y-3">
-                    <div>
-                      <h4 className="text-base font-semibold">Preset Config</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Manage the key/value schema that powers referral dropdowns.
-                      </p>
+              {/* Card 2: Referral Creation Settings */}
+              <Card className="border-muted">
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <CardTitle>Referral Creation Settings</CardTitle>
+                      <CardDescription className="mt-1.5">
+                        Configure the fields, options, and disclaimers used when staff create referrals.
+                      </CardDescription>
                     </div>
+                    <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" type="button" className="shrink-0">
+                          <Eye className="mr-2 h-4 w-4" />
+                          Preview Form
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Referral Form Preview</DialogTitle>
+                          <DialogDescription>
+                            This is how your referral intake form will appear to staff members when creating referrals.
+                            Fields marked with * are required.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="mt-4 -mx-6 px-6">
+                          <FormPreview entries={presetEntries} />
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                  <div className="space-y-3">
+                    <h4 className="text-base font-semibold">Referral field presets</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Define dropdown and checkbox options used in referral forms (locations, times, behaviors, and other
+                      site-specific fields).
+                    </p>
                     <PresetConfigEditor entries={presetEntries} onChange={setPresetEntries} disabled={isSaving} />
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="border-t pt-6 space-y-4">
                     <div>
                       <h4 className="text-base font-semibold">Disclaimers</h4>
                       <p className="text-sm text-muted-foreground">
-                        Customize the text admins, staff, and guardians will read before submitting referrals.
+                        Control the language shown before submitting referrals, including sensitive self-harm and child abuse
+                        notices.
                       </p>
                     </div>
                     <div className="space-y-4">
@@ -598,32 +634,39 @@ export default function SchoolSettingsPage() {
                       ))}
                     </div>
                   </div>
+                </CardContent>
+              </Card>
 
-                  <div className="flex justify-end gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        if (!selectedOrg) return
-                        setFormState(convertOrgToFormState(selectedOrg))
-                        setPresetEntries(convertPresetConfigToEntries(selectedOrg.preset_config))
-                        setDisclaimers(convertDisclaimers(selectedOrg.disclaimers))
-                        setFormError(null)
-                        setSuccessMessage(null)
-                      }}
-                      disabled={isSaving}
-                    >
-                      Reset
-                    </Button>
-                    <Button onClick={handleSave} disabled={isSaving || !selectedOrg}>
-                      {isSaving ? 'Saving...' : 'Save Settings'}
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (!selectedOrg) return
+                    setFormState(convertOrgToFormState(selectedOrg))
+                    setPresetEntries(convertPresetConfigToEntries(selectedOrg.preset_config))
+                    setDisclaimers(convertDisclaimers(selectedOrg.disclaimers))
+                    setFormError(null)
+                    setSuccessMessage(null)
+                  }}
+                  disabled={isSaving}
+                >
+                  Reset
+                </Button>
+                <Button onClick={handleSave} disabled={isSaving || !selectedOrg}>
+                  {isSaving ? 'Saving...' : 'Save Settings'}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Card className="border-muted">
+              <CardContent className="py-12">
+                <p className="text-center text-muted-foreground">Choose an organization from the sidebar to get started.</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   )

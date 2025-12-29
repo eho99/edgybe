@@ -112,23 +112,37 @@ async def get_referral_config(
     # Helper to get dict object (for location, time_of_day, behaviors)
     # Supports fallback keys for different naming conventions
     def get_dict(key, fallback_keys=None):
+        result = {}
         # Try primary key first
         if key in referral_config and isinstance(referral_config[key], dict):
-            return referral_config[key]
+            result = referral_config[key].copy()
         # If key exists but is a list, wrap it in options
-        if key in referral_config and isinstance(referral_config[key], list):
-            return {"options": referral_config[key], "label": key}
-        
+        elif key in referral_config and isinstance(referral_config[key], list):
+            result = {"options": referral_config[key], "label": key}
         # Try fallback keys if provided
-        if fallback_keys:
+        elif fallback_keys:
             for fallback_key in fallback_keys:
                 if fallback_key in referral_config and isinstance(referral_config[fallback_key], dict):
-                    return referral_config[fallback_key]
-                if fallback_key in referral_config and isinstance(referral_config[fallback_key], list):
-                    return {"options": referral_config[fallback_key], "label": fallback_key}
+                    result = referral_config[fallback_key].copy()
+                    break
+                elif fallback_key in referral_config and isinstance(referral_config[fallback_key], list):
+                    result = {"options": referral_config[fallback_key], "label": fallback_key}
+                    break
         
-        logger.warning(f"Key '{key}' (and fallbacks {fallback_keys}) not found in referral_config. Available keys: {list(referral_config.keys())}")
-        return {"options": [], "label": key}
+        # Ensure allowOther is preserved (support both camelCase and snake_case)
+        if not result:
+            logger.warning(f"Key '{key}' (and fallbacks {fallback_keys}) not found in referral_config. Available keys: {list(referral_config.keys())}")
+            result = {"options": [], "label": key}
+        
+        # Normalize allowOther field (support both camelCase and snake_case)
+        if "allowOther" in result:
+            result["allowOther"] = result["allowOther"]
+        elif "allow_other" in result:
+            result["allowOther"] = result.pop("allow_other")
+        else:
+            result["allowOther"] = False
+        
+        return result
 
     # Map actual config keys to expected schema keys
     # types can come from "types" or "referral_type"

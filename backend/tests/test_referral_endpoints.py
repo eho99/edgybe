@@ -228,6 +228,72 @@ class TestReferralConfig:
         assert "common_interventions" in data
         assert "Parent Contact" in data["common_interventions"]
     
+    def test_get_config_with_allow_other(
+        self,
+        client: TestClient,
+        db_session,
+        test_org_id,
+        mock_user
+    ):
+        """
+        ARRANGE: Organization with allowOther flag in config
+        ACT: GET /config/referrals
+        ASSERT: Returns allowOther flag correctly
+        """
+        # Arrange - create organization with allowOther in config
+        org = Organization(
+            id=test_org_id,
+            name="Test School with Other",
+            preset_config={
+                "locations": {
+                    "label": "Location",
+                    "options": ["Classroom", "Hallway"],
+                    "allowOther": True
+                },
+                "time_of_day": {
+                    "label": "Time of Day",
+                    "options": ["Morning", "Afternoon"],
+                    "allow_other": False  # Test snake_case variant
+                },
+                "behaviors": {
+                    "label": "Behaviors",
+                    "options": ["Disruption"],
+                    "allowOther": True
+                },
+                "types": ["Behavior"]
+            }
+        )
+        db_session.add(org)
+        
+        # Create profile and membership
+        profile = Profile(
+            id=mock_user.id,
+            full_name="Test Admin",
+            email=mock_user.email,
+            phone="+14155552671",
+            is_active=True
+        )
+        db_session.add(profile)
+        
+        member = OrganizationMember(
+            organization_id=org.id,
+            user_id=mock_user.id,
+            role=OrgRole.admin,
+            status=MemberStatus.active
+        )
+        db_session.add(member)
+        db_session.commit()
+        
+        # Act
+        response = client.get(f"/api/v1/organizations/{org.id}/config/referrals")
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["locations"]["allowOther"] is True
+        assert data["time_of_day"]["allowOther"] is False
+        assert data["behaviors"]["allowOther"] is True
+    
     def test_get_config_missing(
         self,
         client: TestClient,

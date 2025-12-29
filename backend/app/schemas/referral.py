@@ -4,11 +4,20 @@ from typing import Optional, List
 
 
 # Configuration schemas
+class ReferralFieldConfig(BaseModel):
+    label: Optional[str] = None
+    options: Optional[List[str]] = None
+    helpText: Optional[str] = None
+    required: Optional[bool] = None
+    selection: Optional[str] = None  # 'single' or 'multi'
+    allowOther: Optional[bool] = False
+
+
 class ReferralConfigResponse(BaseModel):
     types: List[str]
-    locations: dict
-    time_of_day: dict
-    behaviors: dict
+    locations: ReferralFieldConfig
+    time_of_day: ReferralFieldConfig
+    behaviors: ReferralFieldConfig
     common_interventions: List[str]
 
 
