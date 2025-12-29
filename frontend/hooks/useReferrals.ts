@@ -40,6 +40,7 @@ export interface Referral {
     organization_id: string
     student_id: string
     author_id: string | null
+    assigned_admin_id: string | null
     status: string
     type: string
     location: string | null
@@ -54,6 +55,7 @@ export interface Referral {
     student_student_id: string | null
     student_grade_level: string | null
     author_name: string | null
+    assigned_admin_name: string | null
     interventions: Intervention[]
 }
 
@@ -62,6 +64,7 @@ export interface ReferralListItem {
     organization_id: string
     student_id: string
     author_id: string | null
+    assigned_admin_id: string | null
     status: string
     type: string
     location: string | null
@@ -73,6 +76,7 @@ export interface ReferralListItem {
     student_name: string | null
     student_student_id: string | null
     author_name: string | null
+    assigned_admin_name: string | null
     intervention_count: number
 }
 
@@ -92,6 +96,7 @@ export interface ReferralUpdatePayload {
     time_of_day?: string
     behaviors?: string[]
     description?: string
+    assigned_admin_id?: string | null
 }
 
 export interface InterventionCreatePayload {

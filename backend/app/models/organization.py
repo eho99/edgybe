@@ -43,6 +43,7 @@ class Organization(Base):
     # Configuration fields (JSON)
     preset_config = Column(JSON, nullable=True)
     form_config = Column(JSON, nullable=True)
+    assignment_config = Column(JSON, nullable=True)  # Admin assignment rules
     
     # SIS integration fields
     aeries_school_code = Column(String, nullable=True, index=True)

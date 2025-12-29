@@ -530,6 +530,48 @@ class TestReferralCreate:
         assert data["behaviors"] == ["Disruption", "Tardy"]
         assert data["student_name"] == "John Doe"
         assert data["author_name"] == "Test Admin"
+        # assigned_admin_id may be None if no assignment config is set
+        assert "assigned_admin_id" in data
+    
+    def test_create_referral_with_assignment_by_grade(
+        self,
+        client: TestClient,
+        db_session,
+        test_organization,
+        test_admin_profile,
+        test_student_profile
+    ):
+        """
+        ARRANGE: Organization with grade-based assignment config
+        ACT: POST /referrals
+        ASSERT: Referral created with assigned admin
+        """
+        # Arrange - set up assignment config
+        test_organization.assignment_config = {
+            "type": "grade",
+            "grade_mappings": {
+                "9": str(test_admin_profile.id)
+            }
+        }
+        db_session.commit()
+        
+        payload = {
+            "student_id": str(test_student_profile.id),
+            "type": "Behavior",
+            "description": "Test referral"
+        }
+        
+        # Act
+        response = client.post(
+            f"/api/v1/organizations/{test_organization.id}/referrals",
+            json=payload
+        )
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["assigned_admin_id"] == str(test_admin_profile.id)
+        assert data["assigned_admin_name"] == "Test Admin"
     
     def test_create_referral_with_other_location(
         self,

@@ -14,6 +14,7 @@ class Referral(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     student_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True)
     author_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True, index=True)
+    assigned_admin_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True, index=True)
     
     # Referral details
     status = Column(String, nullable=False)  # DRAFT, SUBMITTED, REVIEW, CLOSED
@@ -35,6 +36,7 @@ class Referral(Base):
     organization = relationship("Organization", back_populates="referrals")
     student = relationship("Profile", foreign_keys=[student_id], back_populates="student_referrals")
     author = relationship("Profile", foreign_keys=[author_id], back_populates="authored_referrals")
+    assigned_admin = relationship("Profile", foreign_keys=[assigned_admin_id], back_populates="assigned_referrals")
     interventions = relationship("Intervention", back_populates="referral", cascade="all, delete-orphan")
     communication_logs = relationship("CommunicationLog", back_populates="referral", cascade="all, delete-orphan")
 

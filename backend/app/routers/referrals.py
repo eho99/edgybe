@@ -240,11 +240,35 @@ async def create_referral(
             detail="Student not found in this organization"
         )
     
+    # Fetch organization and student for assignment logic
+    organization = db.query(models.Organization).filter(models.Organization.id == org_id).first()
+    student = db.query(models.Profile).filter(models.Profile.id == referral_data.student_id).first()
+    
+    if not organization:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
+    
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found"
+        )
+    
+    # Assign admin based on organization rules
+    assigned_admin_id = referral_service.assign_admin_to_referral(
+        db=db,
+        organization=organization,
+        student=student
+    )
+    
     # Create referral
     referral = models.Referral(
         organization_id=org_id,
         student_id=referral_data.student_id,
         author_id=member.user.id,
+        assigned_admin_id=assigned_admin_id,
         status="SUBMITTED",
         type=referral_data.type,
         location=referral_data.location,
@@ -258,8 +282,8 @@ async def create_referral(
     db.refresh(referral)
     
     # Fetch related data
-    student = db.query(models.Profile).filter(models.Profile.id == referral.student_id).first()
     author = db.query(models.Profile).filter(models.Profile.id == referral.author_id).first()
+    assigned_admin = db.query(models.Profile).filter(models.Profile.id == referral.assigned_admin_id).first() if referral.assigned_admin_id else None
     
     return schemas.ReferralResponse(
         **referral.__dict__,
@@ -267,6 +291,7 @@ async def create_referral(
         student_student_id=student.student_id if student else None,
         student_grade_level=student.grade_level if student else None,
         author_name=author.full_name if author else None,
+        assigned_admin_name=assigned_admin.full_name if assigned_admin else None,
         interventions=[]
     )
 
@@ -329,11 +354,14 @@ async def list_referrals(
             models.Intervention.referral_id == referral.id
         ).scalar()
         
+        assigned_admin = db.query(models.Profile).filter(models.Profile.id == referral.assigned_admin_id).first() if referral.assigned_admin_id else None
+        
         referral_items.append(schemas.ReferralListItem(
             **referral.__dict__,
             student_name=student.full_name if student else None,
             student_student_id=student.student_id if student else None,
             author_name=author.full_name if author else None,
+            assigned_admin_name=assigned_admin.full_name if assigned_admin else None,
             intervention_count=intervention_count or 0
         ))
     
@@ -382,6 +410,7 @@ async def get_referral(
     # Fetch related data
     student = db.query(models.Profile).filter(models.Profile.id == referral.student_id).first()
     author = db.query(models.Profile).filter(models.Profile.id == referral.author_id).first()
+    assigned_admin = db.query(models.Profile).filter(models.Profile.id == referral.assigned_admin_id).first() if referral.assigned_admin_id else None
     
     # Fetch interventions
     interventions = db.query(models.Intervention).filter(
@@ -402,6 +431,7 @@ async def get_referral(
         student_student_id=student.student_id if student else None,
         student_grade_level=student.grade_level if student else None,
         author_name=author.full_name if author else None,
+        assigned_admin_name=assigned_admin.full_name if assigned_admin else None,
         interventions=intervention_responses
     )
 
@@ -438,8 +468,28 @@ async def update_referral(
             detail="You do not have permission to update this referral"
         )
     
-    # Update fields
+    # Validate assigned_admin_id if provided
     update_dict = update_data.model_dump(exclude_unset=True)
+    if "assigned_admin_id" in update_dict:
+        assigned_admin_id = update_dict["assigned_admin_id"]
+        if assigned_admin_id is not None:
+            # Verify the admin belongs to the organization and is active
+            admin_member = db.query(models.OrganizationMember).filter(
+                and_(
+                    models.OrganizationMember.organization_id == org_id,
+                    models.OrganizationMember.user_id == assigned_admin_id,
+                    models.OrganizationMember.role == models.OrgRole.admin,
+                    models.OrganizationMember.status == models.MemberStatus.active
+                )
+            ).first()
+            
+            if not admin_member:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Assigned admin must be an active admin member of this organization"
+                )
+    
+    # Update fields
     for key, value in update_dict.items():
         setattr(referral, key, value)
     
@@ -449,6 +499,7 @@ async def update_referral(
     # Fetch related data
     student = db.query(models.Profile).filter(models.Profile.id == referral.student_id).first()
     author = db.query(models.Profile).filter(models.Profile.id == referral.author_id).first()
+    assigned_admin = db.query(models.Profile).filter(models.Profile.id == referral.assigned_admin_id).first() if referral.assigned_admin_id else None
     
     # Fetch interventions
     interventions = db.query(models.Intervention).filter(
@@ -469,6 +520,7 @@ async def update_referral(
         student_student_id=student.student_id if student else None,
         student_grade_level=student.grade_level if student else None,
         author_name=author.full_name if author else None,
+        assigned_admin_name=assigned_admin.full_name if assigned_admin else None,
         interventions=intervention_responses
     )
 
@@ -514,6 +566,7 @@ async def archive_referral(
     # Fetch related data for response
     student = db.query(models.Profile).filter(models.Profile.id == referral.student_id).first()
     author = db.query(models.Profile).filter(models.Profile.id == referral.author_id).first()
+    assigned_admin = db.query(models.Profile).filter(models.Profile.id == referral.assigned_admin_id).first() if referral.assigned_admin_id else None
     
     # Fetch interventions
     interventions = db.query(models.Intervention).filter(
@@ -534,6 +587,7 @@ async def archive_referral(
         student_student_id=student.student_id if student else None,
         student_grade_level=student.grade_level if student else None,
         author_name=author.full_name if author else None,
+        assigned_admin_name=assigned_admin.full_name if assigned_admin else None,
         interventions=intervention_responses
     )
 
@@ -579,6 +633,7 @@ async def unarchive_referral(
     # Fetch related data for response
     student = db.query(models.Profile).filter(models.Profile.id == referral.student_id).first()
     author = db.query(models.Profile).filter(models.Profile.id == referral.author_id).first()
+    assigned_admin = db.query(models.Profile).filter(models.Profile.id == referral.assigned_admin_id).first() if referral.assigned_admin_id else None
     
     # Fetch interventions
     interventions = db.query(models.Intervention).filter(
@@ -599,6 +654,7 @@ async def unarchive_referral(
         student_student_id=student.student_id if student else None,
         student_grade_level=student.grade_level if student else None,
         author_name=author.full_name if author else None,
+        assigned_admin_name=assigned_admin.full_name if assigned_admin else None,
         interventions=intervention_responses
     )
 

@@ -68,6 +68,7 @@ class ReferralUpdate(BaseModel):
     time_of_day: Optional[str] = None
     behaviors: Optional[List[str]] = None
     description: Optional[str] = None
+    assigned_admin_id: Optional[UUID4] = None
 
 
 class InterventionBase(BaseModel):
@@ -105,6 +106,7 @@ class ReferralResponse(BaseModel):
     organization_id: UUID4
     student_id: UUID4
     author_id: Optional[UUID4] = None
+    assigned_admin_id: Optional[UUID4] = None
     status: str
     type: str
     location: Optional[str] = None
@@ -121,6 +123,7 @@ class ReferralResponse(BaseModel):
     student_student_id: Optional[str] = None
     student_grade_level: Optional[str] = None
     author_name: Optional[str] = None
+    assigned_admin_name: Optional[str] = None
     interventions: List[InterventionResponse] = []
     
     class Config:
@@ -132,6 +135,7 @@ class ReferralListItem(BaseModel):
     organization_id: UUID4
     student_id: UUID4
     author_id: Optional[UUID4] = None
+    assigned_admin_id: Optional[UUID4] = None
     status: str
     type: str
     location: Optional[str] = None
@@ -145,6 +149,7 @@ class ReferralListItem(BaseModel):
     student_name: Optional[str] = None
     student_student_id: Optional[str] = None
     author_name: Optional[str] = None
+    assigned_admin_name: Optional[str] = None
     intervention_count: int = 0
     
     class Config:

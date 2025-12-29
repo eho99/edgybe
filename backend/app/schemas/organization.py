@@ -22,6 +22,7 @@ class OrganizationBase(BaseModel):
     sis_client_id: Optional[str] = None
     sis_client_secret: Optional[str] = None
     disclaimers: Optional[dict] = None
+    assignment_config: Optional[dict] = None
     
     @model_validator(mode='after')
     def validate_grade_range(self):
@@ -54,6 +55,7 @@ class OrganizationUpdate(BaseModel):
     sis_client_id: Optional[str] = None
     sis_client_secret: Optional[str] = None
     disclaimers: Optional[dict] = None
+    assignment_config: Optional[dict] = None
     
     @model_validator(mode='after')
     def validate_grade_range(self):

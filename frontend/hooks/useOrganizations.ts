@@ -26,6 +26,7 @@ export interface Organization {
   sis_client_id: string | null
   sis_client_secret: string | null
   disclaimers: Record<string, unknown> | null
+  assignment_config: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -63,6 +64,7 @@ interface OrganizationBasePayload {
   sis_client_id?: string
   sis_client_secret?: string
   disclaimers?: Record<string, unknown>
+  assignment_config?: Record<string, unknown>
 }
 
 export type OrganizationCreatePayload = {

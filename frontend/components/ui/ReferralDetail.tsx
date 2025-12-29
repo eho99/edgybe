@@ -1,16 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { useReferral, downloadReferralPDF, archiveReferral, unarchiveReferral } from '@/hooks/useReferrals'
+import { useReferral, downloadReferralPDF, archiveReferral, unarchiveReferral, updateReferral } from '@/hooks/useReferrals'
+import { useOrganizationAdmins } from '@/hooks/useOrganizationMembers'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Loader } from '@/components/ui/loader'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { InterventionForm } from './InterventionForm'
 import { EmailReferralModal } from './EmailReferralModal'
 import { useToast } from '@/hooks/useToast'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { Download, Mail, Plus, Edit, Archive, ArchiveRestore } from 'lucide-react'
+import { Download, Mail, Plus, Edit, Archive, ArchiveRestore, UserCheck } from 'lucide-react'
 
 interface ReferralDetailProps {
   orgId: string
@@ -39,6 +41,9 @@ export function ReferralDetail({ orgId, referralId }: ReferralDetailProps) {
   const [editingIntervention, setEditingIntervention] = useState<string | null>(null)
   const [showEmailModal, setShowEmailModal] = useState(false)
   const [downloadingPDF, setDownloadingPDF] = useState(false)
+  const [updatingAssignment, setUpdatingAssignment] = useState(false)
+  
+  const { admins } = useOrganizationAdmins(orgId)
 
   const handleDownloadPDF = async () => {
     setDownloadingPDF(true)
@@ -95,6 +100,27 @@ export function ReferralDetail({ orgId, referralId }: ReferralDetailProps) {
     }
   }
 
+  const handleAssignmentChange = async (adminId: string | null) => {
+    setUpdatingAssignment(true)
+    try {
+      await updateReferral(orgId, referralId, {
+        assigned_admin_id: adminId,
+      })
+      toast({
+        variant: 'success',
+        title: 'Assignment Updated',
+        description: adminId 
+          ? 'Admin assignment has been updated successfully'
+          : 'Admin assignment has been removed',
+      })
+      mutate() // Refresh the referral data
+    } catch (err) {
+      handleError(err, { title: 'Failed to update assignment' })
+    } finally {
+      setUpdatingAssignment(false)
+    }
+  }
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A'
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -147,6 +173,34 @@ export function ReferralDetail({ orgId, referralId }: ReferralDetailProps) {
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              {/* Admin Assignment */}
+              <div className="flex items-center gap-2">
+                <Select
+                  value={referral.assigned_admin_id || 'none'}
+                  onValueChange={(value) => 
+                    handleAssignmentChange(value === 'none' ? null : value)
+                  }
+                  disabled={updatingAssignment}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Assign admin">
+                      {referral.assigned_admin_name 
+                        ? `Assigned: ${referral.assigned_admin_name}`
+                        : 'Assign Admin'}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not assigned</SelectItem>
+                    {admins
+                      .filter((admin) => admin.user_id)
+                      .map((admin) => (
+                        <SelectItem key={admin.user_id} value={admin.user_id!}>
+                          {admin.full_name || admin.email || 'Unknown'}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {referral.archived ? (
                 <Button
                   variant="outline"

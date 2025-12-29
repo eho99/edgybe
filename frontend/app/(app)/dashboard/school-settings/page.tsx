@@ -27,6 +27,10 @@ import {
   validatePresetConfigEntries,
 } from '@/components/school-settings/PresetConfigEditor'
 import { FormPreview } from '@/components/school-settings/FormPreview'
+import {
+  AssignmentConfigEditor,
+  type AssignmentConfig,
+} from '@/components/school-settings/AssignmentConfigEditor'
 import type { ReferralFieldSelection } from '@/hooks/useReferrals'
 
 type OrganizationFormState = {
@@ -315,6 +319,7 @@ export default function SchoolSettingsPage() {
     self_harm: '',
     child_abuse: '',
   })
+  const [assignmentConfig, setAssignmentConfig] = useState<AssignmentConfig | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
@@ -349,11 +354,15 @@ export default function SchoolSettingsPage() {
         self_harm: '',
         child_abuse: '',
       })
+      setAssignmentConfig(null)
       return
     }
     setFormState(convertOrgToFormState(selectedOrg))
     setPresetEntries(convertPresetConfigToEntries(selectedOrg.preset_config))
     setDisclaimers(convertDisclaimers(selectedOrg.disclaimers))
+    setAssignmentConfig(
+      (selectedOrg.assignment_config as AssignmentConfig | null) ?? null
+    )
   }, [selectedOrg])
 
   const handleInputChange = (field: keyof OrganizationFormState, value: string) => {
@@ -388,6 +397,7 @@ export default function SchoolSettingsPage() {
       sis_client_id: toOptionalString(formState.sis_client_id),
       sis_client_secret: toOptionalString(formState.sis_client_secret),
       disclaimers: buildDisclaimerPayload(disclaimers),
+      assignment_config: assignmentConfig ?? undefined,
     }
   }
 
@@ -403,6 +413,9 @@ export default function SchoolSettingsPage() {
       setFormState(convertOrgToFormState(updated))
       setPresetEntries(convertPresetConfigToEntries(updated.preset_config))
       setDisclaimers(convertDisclaimers(updated.disclaimers))
+      setAssignmentConfig(
+        (updated.assignment_config as AssignmentConfig | null) ?? null
+      )
       setSuccessMessage('Settings saved successfully.')
     } catch (err) {
       const message =
@@ -637,6 +650,24 @@ export default function SchoolSettingsPage() {
                 </CardContent>
               </Card>
 
+              {/* Card 3: Admin Assignment Settings */}
+              <Card className="border-muted">
+                <CardHeader>
+                  <CardTitle>Admin Assignment Settings</CardTitle>
+                  <CardDescription>
+                    Configure automatic assignment of referrals to admins based on grade level or alphabetical order.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AssignmentConfigEditor
+                    orgId={selectedOrg.id}
+                    config={assignmentConfig}
+                    onChange={setAssignmentConfig}
+                    disabled={isSaving}
+                  />
+                </CardContent>
+              </Card>
+
               {/* Action Buttons */}
               <div className="flex justify-end gap-3">
                 <Button
@@ -647,6 +678,9 @@ export default function SchoolSettingsPage() {
                     setFormState(convertOrgToFormState(selectedOrg))
                     setPresetEntries(convertPresetConfigToEntries(selectedOrg.preset_config))
                     setDisclaimers(convertDisclaimers(selectedOrg.disclaimers))
+                    setAssignmentConfig(
+                      (selectedOrg.assignment_config as AssignmentConfig | null) ?? null
+                    )
                     setFormError(null)
                     setSuccessMessage(null)
                   }}
