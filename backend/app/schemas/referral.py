@@ -148,6 +148,7 @@ class ReferralListItem(BaseModel):
     # Nested data
     student_name: Optional[str] = None
     student_student_id: Optional[str] = None
+    student_grade_level: Optional[str] = None
     author_name: Optional[str] = None
     assigned_admin_name: Optional[str] = None
     intervention_count: int = 0

@@ -75,6 +75,7 @@ export interface ReferralListItem {
     updated_at: string
     student_name: string | null
     student_student_id: string | null
+    student_grade_level: string | null
     author_name: string | null
     assigned_admin_name: string | null
     intervention_count: number
@@ -275,6 +276,10 @@ export function useReferrals(
         type?: string
         author_id?: string
         include_archived?: boolean
+        grade_level?: string
+        location?: string
+        created_after?: string
+        created_before?: string
     }
 ) {
     // Build query string

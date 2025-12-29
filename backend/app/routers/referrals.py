@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from fastapi.responses import Response
 from pydantic import UUID4
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, func
 from typing import Optional, List
 import logging
@@ -306,6 +306,10 @@ async def list_referrals(
     type: Optional[str] = None,
     author_id: Optional[UUID4] = None,
     include_archived: bool = Query(False, description="Include archived referrals in results"),
+    grade_level: Optional[str] = Query(None, description="Filter by student's grade level"),
+    location: Optional[str] = Query(None, description="Filter by referral location"),
+    created_after: Optional[datetime] = Query(None, description="Filter referrals created on or after this date (ISO8601)"),
+    created_before: Optional[datetime] = Query(None, description="Filter referrals created on or before this date (ISO8601)"),
     db: Session = Depends(get_db),
     member: schemas.AuthenticatedMember = Depends(auth.get_current_active_member)
 ):
@@ -337,6 +341,25 @@ async def list_referrals(
         query = query.filter(models.Referral.type == type)
     if author_id:
         query = query.filter(models.Referral.author_id == author_id)
+    if location:
+        query = query.filter(models.Referral.location == location)
+    if created_after:
+        # Ensure timezone-aware comparison
+        if created_after.tzinfo is None:
+            created_after = created_after.replace(tzinfo=timezone.utc)
+        query = query.filter(models.Referral.created_at >= created_after)
+    if created_before:
+        # Ensure timezone-aware comparison
+        if created_before.tzinfo is None:
+            created_before = created_before.replace(tzinfo=timezone.utc)
+        query = query.filter(models.Referral.created_at <= created_before)
+    
+    # Filter by grade level if provided (using subquery to avoid duplicate rows)
+    if grade_level:
+        student_ids_with_grade = db.query(models.Profile.id).filter(
+            models.Profile.grade_level == grade_level
+        )
+        query = query.filter(models.Referral.student_id.in_(student_ids_with_grade))
     
     # Get total count
     total = query.count()
@@ -360,6 +383,7 @@ async def list_referrals(
             **referral.__dict__,
             student_name=student.full_name if student else None,
             student_student_id=student.student_id if student else None,
+            student_grade_level=student.grade_level if student else None,
             author_name=author.full_name if author else None,
             assigned_admin_name=assigned_admin.full_name if assigned_admin else None,
             intervention_count=intervention_count or 0
