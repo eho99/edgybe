@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   useReferralConfig,
   createReferral,
@@ -8,6 +8,7 @@ import {
   type ReferralFieldConfig,
   type ReferralFieldSelection,
 } from '@/hooks/useReferrals'
+import { useOrganization, type Disclaimers } from '@/hooks/useOrganizations'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,6 +19,7 @@ import { useToast } from '@/hooks/useToast'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { Loader } from '@/components/ui/loader'
 import { StudentSearchSelect } from '@/components/ui/StudentSearchSelect'
+import { DisclaimerModal } from '@/components/ui/DisclaimerModal'
 
 interface CreateReferralFormProps {
   orgId: string
@@ -70,8 +72,26 @@ const normalizeFieldConfig = (
   }
 }
 
+type DisclaimerKey = 'general' | 'self_harm' | 'child_abuse'
+
+const DISCLAIMER_TITLES: Record<DisclaimerKey, string> = {
+  general: 'Important Notice',
+  self_harm: 'Self-Harm Disclaimer',
+  child_abuse: 'Child Abuse Disclaimer',
+}
+
+// Normalize behavior name to match disclaimer keys
+// "Self-Harm" -> "self_harm", "Child Abuse" -> "child_abuse"
+const normalizeToDisclaimerKey = (behavior: string): DisclaimerKey | null => {
+  const normalized = behavior.toLowerCase().replace(/[\s-]+/g, '_')
+  if (normalized.includes('self_harm')) return 'self_harm'
+  if (normalized.includes('child_abuse')) return 'child_abuse'
+  return null
+}
+
 export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferralFormProps) {
   const { config, isLoading: configLoading } = useReferralConfig(orgId)
+  const { organization, isLoading: orgLoading } = useOrganization(orgId)
   const { toast } = useToast()
   const { handleError } = useErrorHandler()
 
@@ -80,15 +100,69 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
   // Form state
   const [formData, setFormData] = useState<ReferralFormState>(createEmptyFormState)
 
-  const resetForm = () => setFormData(createEmptyFormState())
+  // Disclaimer state
+  const [acknowledgedDisclaimers, setAcknowledgedDisclaimers] = useState<Set<DisclaimerKey>>(new Set())
+  const [pendingDisclaimer, setPendingDisclaimer] = useState<DisclaimerKey | null>(null)
+  const [pendingBehavior, setPendingBehavior] = useState<string | null>(null)
 
+  // Get typed disclaimers from organization
+  const disclaimers: Disclaimers = (organization?.disclaimers as Disclaimers) ?? {}
+
+  // Show general disclaimer on mount if it exists and hasn't been acknowledged
+  useEffect(() => {
+    if (!orgLoading && disclaimers.general && !acknowledgedDisclaimers.has('general')) {
+      setPendingDisclaimer('general')
+    }
+  }, [orgLoading, disclaimers.general, acknowledgedDisclaimers])
+
+  const handleDisclaimerAcknowledge = useCallback(() => {
+    if (pendingDisclaimer) {
+      setAcknowledgedDisclaimers((prev) => new Set(prev).add(pendingDisclaimer))
+      
+      // If acknowledging a behavior-specific disclaimer, add the behavior to form
+      if (pendingBehavior && pendingDisclaimer !== 'general') {
+        setFormData((prev) => ({
+          ...prev,
+          behaviors: [...prev.behaviors, pendingBehavior],
+        }))
+      }
+      
+      setPendingDisclaimer(null)
+      setPendingBehavior(null)
+    }
+  }, [pendingDisclaimer, pendingBehavior])
+
+  const resetForm = () => {
+    setFormData(createEmptyFormState())
+    // Keep general disclaimer acknowledged, but reset behavior-specific ones
+    setAcknowledgedDisclaimers((prev) => {
+      const newSet = new Set<DisclaimerKey>()
+      if (prev.has('general')) newSet.add('general')
+      return newSet
+    })
+  }
 
   const handleBehaviorToggle = (behavior: string) => {
+    const isAdding = !formData.behaviors.includes(behavior)
+    
+    if (isAdding) {
+      // Check if this behavior requires a disclaimer
+      const disclaimerKey = normalizeToDisclaimerKey(behavior)
+      
+      if (disclaimerKey && disclaimers[disclaimerKey] && !acknowledgedDisclaimers.has(disclaimerKey)) {
+        // Show disclaimer modal before adding the behavior
+        setPendingDisclaimer(disclaimerKey)
+        setPendingBehavior(behavior)
+        return
+      }
+    }
+    
+    // No disclaimer needed or removing behavior
     setFormData((prev) => ({
       ...prev,
-      behaviors: prev.behaviors.includes(behavior)
-        ? prev.behaviors.filter((b) => b !== behavior)
-        : [...prev.behaviors, behavior],
+      behaviors: isAdding
+        ? [...prev.behaviors, behavior]
+        : prev.behaviors.filter((b) => b !== behavior),
     }))
   }
 
@@ -164,7 +238,7 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
     }
   }
 
-  if (configLoading) {
+  if (configLoading || orgLoading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
@@ -209,8 +283,22 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
     )
   }
 
+  // Check if general disclaimer is required but not yet acknowledged (blocks form access)
+  const isBlocked = disclaimers.general && !acknowledgedDisclaimers.has('general')
+
   return (
-    <Card>
+    <>
+      {/* Disclaimer Modal */}
+      {pendingDisclaimer && disclaimers[pendingDisclaimer] && (
+        <DisclaimerModal
+          open={true}
+          title={DISCLAIMER_TITLES[pendingDisclaimer]}
+          content={disclaimers[pendingDisclaimer]!}
+          onAcknowledge={handleDisclaimerAcknowledge}
+        />
+      )}
+
+      <Card className={isBlocked ? 'pointer-events-none opacity-50' : ''}>
       <CardHeader>
         <CardTitle>Create Student Referral</CardTitle>
         <CardDescription>
@@ -425,6 +513,7 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
         </form>
       </CardContent>
     </Card>
+    </>
   )
 }
 

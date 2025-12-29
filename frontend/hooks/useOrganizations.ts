@@ -37,6 +37,12 @@ export interface OrganizationMembership {
   joined_at: string
 }
 
+export interface Disclaimers {
+  general?: string
+  self_harm?: string
+  child_abuse?: string
+}
+
 export type OrganizationWithRole = Organization & { role?: string }
 
 interface OrganizationBasePayload {
@@ -94,6 +100,19 @@ export const useOrganizations = () => {
     isLoading: isLoading || membershipsLoading,
     error: error || membershipsError,
     mutate,
+  }
+}
+
+export function useOrganization(orgId: string | null) {
+  const { data, error, isLoading } = useSWR<Organization>(
+    orgId ? `${ORGANIZATIONS_ENDPOINT}/${orgId}` : null,
+    apiClient
+  )
+
+  return {
+    organization: data,
+    isLoading,
+    error,
   }
 }
 
