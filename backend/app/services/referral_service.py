@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Iterable, List, Optional
 import uuid
 
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session, joinedload
 
 from .. import models
@@ -120,6 +120,153 @@ def get_referral_stats(
         "start_date": normalized_start,
         "end_date": normalized_end,
     }
+
+
+def assign_admin_to_referral(
+    db: Session,
+    organization: models.Organization,
+    student: models.Profile,
+) -> Optional[uuid.UUID]:
+    """
+    Assign an admin to a referral based on organization's assignment_config rules.
+    
+    Rules supported:
+    - "grade": Assign based on student's grade level
+    - "alphabetical": Assign based on student's name (first or last name)
+    
+    Returns:
+        UUID of assigned admin profile, or None if no assignment rule matches
+    """
+    if not organization.assignment_config:
+        return None
+    
+    config = organization.assignment_config
+    if not isinstance(config, dict):
+        return None
+    
+    rule_type = config.get("type")
+    if not rule_type:
+        return None
+    
+    # Get all active admin members for this organization
+    admin_members = db.query(models.OrganizationMember).join(
+        models.Profile,
+        models.OrganizationMember.user_id == models.Profile.id
+    ).filter(
+        and_(
+            models.OrganizationMember.organization_id == organization.id,
+            models.OrganizationMember.role == models.OrgRole.admin,
+            models.OrganizationMember.status == models.MemberStatus.active,
+            models.Profile.is_active == True
+        )
+    ).all()
+    
+    if not admin_members:
+        return None
+    
+    admin_ids = [member.user_id for member in admin_members if member.user_id]
+    if not admin_ids:
+        return None
+    
+    # Assignment by grade
+    if rule_type == "grade":
+        grade_mappings = config.get("grade_mappings", {})
+        if not grade_mappings:
+            return None
+        
+        student_grade = student.grade_level
+        if not student_grade:
+            return None
+        
+        # Try to match grade (handle both string and numeric grades)
+        # Normalize grade to string for comparison
+        grade_str = str(student_grade).strip()
+        
+        # Check for exact match first
+        if grade_str in grade_mappings:
+            admin_id_str = grade_mappings[grade_str]
+            try:
+                admin_id = uuid.UUID(admin_id_str) if isinstance(admin_id_str, str) else admin_id_str
+                if admin_id in admin_ids:
+                    return admin_id
+            except (ValueError, TypeError):
+                pass
+        
+        # If no exact match, try numeric comparison if grade is numeric
+        try:
+            grade_num = int(grade_str)
+            # Check if any key matches as a number
+            for key, admin_id_str in grade_mappings.items():
+                try:
+                    key_num = int(key)
+                    if key_num == grade_num:
+                        admin_id = uuid.UUID(admin_id_str) if isinstance(admin_id_str, str) else admin_id_str
+                        if admin_id in admin_ids:
+                            return admin_id
+                except (ValueError, TypeError):
+                    continue
+        except ValueError:
+            pass
+        
+        return None
+    
+    # Assignment by alphabetical order
+    elif rule_type == "alphabetical":
+        name_field = config.get("name_field", "last_name")  # default to last_name
+        letter_ranges = config.get("letter_ranges", {})
+        
+        if not letter_ranges:
+            return None
+        
+        # Get the name to use for sorting
+        if not student.full_name:
+            return None
+        
+        name_parts = student.full_name.strip().split()
+        if not name_parts:
+            return None
+        
+        # Determine which name part to use
+        if name_field == "first_name":
+            name_to_check = name_parts[0]
+        else:  # last_name (default)
+            name_to_check = name_parts[-1]
+        
+        if not name_to_check:
+            return None
+        
+        # Get first letter (case-insensitive)
+        first_letter = name_to_check[0].upper()
+        
+        # Find matching letter range
+        for range_key, admin_id_str in letter_ranges.items():
+            # Range can be a single letter "A" or a range "A-M"
+            if "-" in range_key:
+                # Handle range like "A-M"
+                start, end = range_key.split("-", 1)
+                start = start.strip().upper()
+                end = end.strip().upper()
+                if start <= first_letter <= end:
+                    try:
+                        admin_id = uuid.UUID(admin_id_str) if isinstance(admin_id_str, str) else admin_id_str
+                        if admin_id in admin_ids:
+                            return admin_id
+                    except (ValueError, TypeError):
+                        continue
+            else:
+                # Single letter match
+                if range_key.strip().upper() == first_letter:
+                    try:
+                        admin_id = uuid.UUID(admin_id_str) if isinstance(admin_id_str, str) else admin_id_str
+                        if admin_id in admin_ids:
+                            return admin_id
+                    except (ValueError, TypeError):
+                        continue
+        
+        return None
+    
+    # Unknown rule type
+    return None
 
 
 

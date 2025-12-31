@@ -1,12 +1,13 @@
-'use client'
+"use client"
 
 import { useCallback, useMemo, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Info, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ReferralFieldSelection } from '@/hooks/useReferrals'
 
 export type PresetOptionEntry = {
@@ -22,6 +23,7 @@ export type PresetConfigEntry = {
   required: boolean
   selection: ReferralFieldSelection
   options: PresetOptionEntry[]
+  allowOther: boolean
   error?: string
 }
 
@@ -54,6 +56,7 @@ export const createEntry = (
   helpText: typeof config?.helpText === 'string' ? config.helpText : '',
   required: Boolean(config?.required),
   selection: config?.selection === 'multi' ? 'multi' : 'single',
+  allowOther: Boolean(config?.allowOther),
   options:
     Array.isArray(config?.options) && config.options.length > 0
       ? config.options
@@ -164,6 +167,29 @@ export const PresetConfigEditor = ({ entries, onChange, disabled }: PresetConfig
     )
   }
 
+  const handleMoveOption = (entryId: string, optionId: string, direction: 'up' | 'down') => {
+    updateEntries((draft) =>
+      draft.map((entry) => {
+        if (entry.id !== entryId) return entry
+
+        const index = entry.options.findIndex((option) => option.id === optionId)
+        if (index === -1) return entry
+
+        const targetIndex = direction === 'up' ? index - 1 : index + 1
+        if (targetIndex < 0 || targetIndex >= entry.options.length) return entry
+
+        const nextOptions = [...entry.options]
+        const [moved] = nextOptions.splice(index, 1)
+        nextOptions.splice(targetIndex, 0, moved)
+
+        return {
+          ...entry,
+          options: nextOptions,
+        }
+      })
+    )
+  }
+
   const handleAddEntry = () => {
     const trimmedKey = newFieldKey.trim()
     if (!trimmedKey || hasDuplicateKey) {
@@ -179,7 +205,7 @@ export const PresetConfigEditor = ({ entries, onChange, disabled }: PresetConfig
         <p className="text-sm text-muted-foreground">No preset fields yet. Add your first field below.</p>
       )}
 
-      <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
         {entries.map((entry) => (
           <div
             key={entry.id}
@@ -189,9 +215,6 @@ export const PresetConfigEditor = ({ entries, onChange, disabled }: PresetConfig
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Field key</p>
                 <p className="font-mono text-sm font-semibold">{entry.key}</p>
-                <p className="text-xs text-muted-foreground">
-                  Keys map to API fields and cannot be edited. Remove and re-add to change them.
-                </p>
               </div>
               <Button
                 type="button"
@@ -249,6 +272,37 @@ export const PresetConfigEditor = ({ entries, onChange, disabled }: PresetConfig
                 />
                 <Label htmlFor={`required-${entry.id}`}>Required field</Label>
               </div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox
+                  id={`allowOther-${entry.id}`}
+                  checked={entry.allowOther}
+                  onCheckedChange={(checked) => handleFieldChange(entry.id, 'allowOther', Boolean(checked))}
+                  disabled={disabled}
+                />
+                <Label htmlFor={`allowOther-${entry.id}`} className="flex items-center gap-1.5">
+                  Allow 'Other' with text input
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          disabled={disabled}
+                        >
+                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs">
+                        <p>
+                          When enabled, users will see an "Other" option in the dropdown or checkbox list. Selecting
+                          "Other" reveals a text input field where they can enter a custom value not in the predefined
+                          options.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </Label>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -271,21 +325,47 @@ export const PresetConfigEditor = ({ entries, onChange, disabled }: PresetConfig
               <div className="space-y-2">
                 {entry.options.map((option, index) => (
                   <div key={option.id} className="flex items-center gap-2">
+                    <span className="w-6 text-xs text-muted-foreground text-right">{index + 1}.</span>
                     <Input
                       value={option.value}
                       onChange={(event) => handleOptionChange(entry.id, option.id, event.target.value)}
                       placeholder={`Option ${index + 1}`}
                       disabled={disabled}
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="text-muted-foreground"
-                      onClick={() => handleRemoveOption(entry.id, option.id)}
-                      disabled={disabled || entry.options.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground"
+                        onClick={() => handleMoveOption(entry.id, option.id, 'up')}
+                        disabled={disabled || index === 0}
+                        aria-label="Move option up"
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground"
+                        onClick={() => handleMoveOption(entry.id, option.id, 'down')}
+                        disabled={disabled || index === entry.options.length - 1}
+                        aria-label="Move option down"
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={() => handleRemoveOption(entry.id, option.id)}
+                        disabled={disabled || entry.options.length === 1}
+                        aria-label="Remove option"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

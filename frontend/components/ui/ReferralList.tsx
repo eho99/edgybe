@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { useReferrals, archiveReferral, unarchiveReferral } from '@/hooks/useReferrals'
+import { useReferrals, archiveReferral, unarchiveReferral, useReferralConfig } from '@/hooks/useReferrals'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -12,8 +12,9 @@ import { Loader } from '@/components/ui/loader'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useToast } from '@/hooks/useToast'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
-import { Archive, ArchiveRestore } from 'lucide-react'
+import { Archive, ArchiveRestore, X } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 
 interface ReferralListProps {
   orgId: string
@@ -34,22 +35,105 @@ export function ReferralList({ orgId, basePath = `/dashboard/organizations/${org
     status: '',
     type: '',
     search: '',
+    grade: '',
+    location: '',
+  })
+  const [dateRange, setDateRange] = useState({
+    start: '',
+    end: '',
   })
   const { toast } = useToast()
   const { handleError } = useErrorHandler()
+  const { config } = useReferralConfig(orgId)
 
-  const { referrals, total, per_page, total_pages, isLoading, mutate } = useReferrals(orgId, {
-    page,
-    per_page: 20,
-    status: filters.status || undefined,
-    type: filters.type || undefined,
-    include_archived: includeArchived,
-  })
+  // Build API filters
+  const apiFilters = useMemo(() => {
+    const apiFilter: {
+      page: number
+      per_page: number
+      status?: string
+      type?: string
+      include_archived: boolean
+      grade_level?: string
+      location?: string
+      created_after?: string
+      created_before?: string
+    } = {
+      page,
+      per_page: 20,
+      include_archived: includeArchived,
+    }
+
+    if (filters.status) apiFilter.status = filters.status
+    if (filters.type) apiFilter.type = filters.type
+    if (filters.grade) apiFilter.grade_level = filters.grade
+    if (filters.location) apiFilter.location = filters.location
+    if (dateRange.start) {
+      // Convert local date to ISO string (assumes start of day in local timezone)
+      const date = new Date(dateRange.start)
+      date.setHours(0, 0, 0, 0)
+      apiFilter.created_after = date.toISOString()
+    }
+    if (dateRange.end) {
+      // Convert local date to ISO string (assumes end of day in local timezone)
+      const date = new Date(dateRange.end)
+      date.setHours(23, 59, 59, 999)
+      apiFilter.created_before = date.toISOString()
+    }
+
+    return apiFilter
+  }, [page, includeArchived, filters, dateRange])
+
+  const { referrals, total, per_page, total_pages, isLoading, mutate } = useReferrals(orgId, apiFilters)
+
+  // Extract unique grade levels from referrals
+  const uniqueGrades = useMemo(() => {
+    const grades = new Set<string>()
+    referrals.forEach((referral) => {
+      if (referral.student_grade_level) {
+        grades.add(referral.student_grade_level)
+      }
+    })
+    return Array.from(grades).sort()
+  }, [referrals])
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
     setPage(1) // Reset to first page when filter changes
   }
+
+  const handleDateRangeChange = (key: 'start' | 'end', value: string) => {
+    setDateRange((prev) => ({ ...prev, [key]: value }))
+    setPage(1) // Reset to first page when filter changes
+  }
+
+  const handleClearFilters = () => {
+    setFilters({
+      status: '',
+      type: '',
+      search: '',
+      grade: '',
+      location: '',
+    })
+    setDateRange({
+      start: '',
+      end: '',
+    })
+    setPage(1)
+  }
+
+  // Check if any filters are active
+  const hasActiveFilters = useMemo(() => {
+    return (
+      filters.status !== '' ||
+      filters.type !== '' ||
+      filters.search !== '' ||
+      filters.grade !== '' ||
+      filters.location !== '' ||
+      dateRange.start !== '' ||
+      dateRange.end !== ''
+    )
+  }, [filters, dateRange])
 
   const handleArchive = async (referralId: string) => {
     try {
@@ -109,63 +193,157 @@ export function ReferralList({ orgId, basePath = `/dashboard/organizations/${org
       </CardHeader>
       <CardContent>
         {/* Filters */}
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div>
-            <Input
-              placeholder="Search by student name..."
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-            />
+        <div className="mb-6 space-y-4">
+          {/* First row of filters */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="space-y-2">
+              <Label htmlFor="search" className="text-xs text-muted-foreground">
+                Search
+              </Label>
+              <Input
+                id="search"
+                placeholder="Student name..."
+                value={filters.search}
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="status" className="text-xs text-muted-foreground">
+                Status
+              </Label>
+              <Select
+                value={filters.status}
+                onValueChange={(value) => handleFilterChange('status', value)}
+              >
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value=" ">All Statuses</SelectItem>
+                  <SelectItem value="DRAFT">Draft</SelectItem>
+                  <SelectItem value="SUBMITTED">Submitted</SelectItem>
+                  <SelectItem value="REVIEW">Review</SelectItem>
+                  <SelectItem value="CLOSED">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="type" className="text-xs text-muted-foreground">
+                Type
+              </Label>
+              <Select
+                value={filters.type}
+                onValueChange={(value) => handleFilterChange('type', value)}
+              >
+                <SelectTrigger id="type">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value=" ">All Types</SelectItem>
+                  <SelectItem value="Behavior">Behavior</SelectItem>
+                  <SelectItem value="Support">Support</SelectItem>
+                  <SelectItem value="Academic">Academic</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="include-archived"
+                checked={includeArchived}
+                onCheckedChange={(checked) => {
+                  setIncludeArchived(checked === true)
+                  setPage(1)
+                }}
+              />
+              <label
+                htmlFor="include-archived"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Include archived
+              </label>
+            </div>
           </div>
-          <div>
-            <Select
-              value={filters.status}
-              onValueChange={(value) => handleFilterChange('status', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value=" ">All Statuses</SelectItem>
-                <SelectItem value="DRAFT">Draft</SelectItem>
-                <SelectItem value="SUBMITTED">Submitted</SelectItem>
-                <SelectItem value="REVIEW">Review</SelectItem>
-                <SelectItem value="CLOSED">Closed</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Second row of filters */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="space-y-2">
+              <Label htmlFor="grade" className="text-xs text-muted-foreground">
+                Grade
+              </Label>
+              <Select
+                value={filters.grade}
+                onValueChange={(value) => handleFilterChange('grade', value)}
+              >
+                <SelectTrigger id="grade">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value=" ">All Grades</SelectItem>
+                  {uniqueGrades.map((grade) => (
+                    <SelectItem key={grade} value={grade}>
+                      {grade}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="location" className="text-xs text-muted-foreground">
+                Location
+              </Label>
+              <Select
+                value={filters.location}
+                onValueChange={(value) => handleFilterChange('location', value)}
+              >
+                <SelectTrigger id="location">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value=" ">All Locations</SelectItem>
+                  {config?.locations?.options?.map((location) => (
+                    <SelectItem key={location} value={location}>
+                      {location}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="date-start" className="text-xs text-muted-foreground">
+                Created after
+              </Label>
+              <Input
+                id="date-start"
+                type="date"
+                value={dateRange.start}
+                onChange={(e) => handleDateRangeChange('start', e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="date-end" className="text-xs text-muted-foreground">
+                Created before
+              </Label>
+              <Input
+                id="date-end"
+                type="date"
+                value={dateRange.end}
+                onChange={(e) => handleDateRangeChange('end', e.target.value)}
+              />
+            </div>
           </div>
-          <div>
-            <Select
-              value={filters.type}
-              onValueChange={(value) => handleFilterChange('type', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value=" ">All Types</SelectItem>
-                <SelectItem value="Behavior">Behavior</SelectItem>
-                <SelectItem value="Support">Support</SelectItem>
-                <SelectItem value="Academic">Academic</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="include-archived"
-              checked={includeArchived}
-              onCheckedChange={(checked) => {
-                setIncludeArchived(checked === true)
-                setPage(1)
-              }}
-            />
-            <label
-              htmlFor="include-archived"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              Include archived
-            </label>
-          </div>
+          {/* Clear filters button */}
+          {hasActiveFilters && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearFilters}
+                className="gap-2"
+              >
+                <X className="h-4 w-4" />
+                Clear filters
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Table */}

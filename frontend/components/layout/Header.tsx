@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/navigation-menu"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ProfileDropdown } from "./ProfileDropdown"
+import { ThemeToggle } from "@/components/theme/ThemeToggle"
 
 const navItems = [
   { label: "Overview", href: "/dashboard" },
@@ -45,6 +46,7 @@ export function Header({ title, description }: HeaderProps) {
           </NavigationMenu>
         </div>
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <ProfileDropdown />
         </div>
       </div>

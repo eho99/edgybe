@@ -4,11 +4,20 @@ from typing import Optional, List
 
 
 # Configuration schemas
+class ReferralFieldConfig(BaseModel):
+    label: Optional[str] = None
+    options: Optional[List[str]] = None
+    helpText: Optional[str] = None
+    required: Optional[bool] = None
+    selection: Optional[str] = None  # 'single' or 'multi'
+    allowOther: Optional[bool] = False
+
+
 class ReferralConfigResponse(BaseModel):
     types: List[str]
-    locations: dict
-    time_of_day: dict
-    behaviors: dict
+    locations: ReferralFieldConfig
+    time_of_day: ReferralFieldConfig
+    behaviors: ReferralFieldConfig
     common_interventions: List[str]
 
 
@@ -59,6 +68,7 @@ class ReferralUpdate(BaseModel):
     time_of_day: Optional[str] = None
     behaviors: Optional[List[str]] = None
     description: Optional[str] = None
+    assigned_admin_id: Optional[UUID4] = None
 
 
 class InterventionBase(BaseModel):
@@ -96,6 +106,7 @@ class ReferralResponse(BaseModel):
     organization_id: UUID4
     student_id: UUID4
     author_id: Optional[UUID4] = None
+    assigned_admin_id: Optional[UUID4] = None
     status: str
     type: str
     location: Optional[str] = None
@@ -112,6 +123,7 @@ class ReferralResponse(BaseModel):
     student_student_id: Optional[str] = None
     student_grade_level: Optional[str] = None
     author_name: Optional[str] = None
+    assigned_admin_name: Optional[str] = None
     interventions: List[InterventionResponse] = []
     
     class Config:
@@ -123,6 +135,7 @@ class ReferralListItem(BaseModel):
     organization_id: UUID4
     student_id: UUID4
     author_id: Optional[UUID4] = None
+    assigned_admin_id: Optional[UUID4] = None
     status: str
     type: str
     location: Optional[str] = None
@@ -135,7 +148,9 @@ class ReferralListItem(BaseModel):
     # Nested data
     student_name: Optional[str] = None
     student_student_id: Optional[str] = None
+    student_grade_level: Optional[str] = None
     author_name: Optional[str] = None
+    assigned_admin_name: Optional[str] = None
     intervention_count: int = 0
     
     class Config:

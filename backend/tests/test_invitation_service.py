@@ -18,7 +18,7 @@ def mock_db_session():
 
 @pytest.fixture
 def invitation_service(mock_db_session):
-    return InvitationService(mock_db_session, frontend_url=FRONTEND_URL)
+    return InvitationService(mock_db_session)
 
 
 @pytest.fixture

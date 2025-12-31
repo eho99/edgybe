@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import UUID4
 from sqlalchemy import and_, or_
-from typing import Optional
+from typing import Optional, List
 import logging
 import os
 
@@ -303,4 +303,66 @@ async def reset_member_password(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send password reset email: {str(e)}"
+        )
+
+
+@router.get(
+    "/admins",
+    response_model=List[schemas.AccountResponse]
+)
+async def list_admins(
+    org_id: UUID4,
+    db: Session = Depends(get_db),
+    member: schemas.AuthenticatedMember = Depends(auth.get_current_active_member)
+):
+    """
+    List all active admin members for an organization.
+    Used for assignment configuration.
+    """
+    try:
+        # Query active admin members
+        query = db.query(models.OrganizationMember).join(
+            models.Profile,
+            models.OrganizationMember.user_id == models.Profile.id,
+            isouter=True
+        ).filter(
+            models.OrganizationMember.organization_id == org_id,
+            models.OrganizationMember.role == models.OrgRole.admin,
+            models.OrganizationMember.status == models.MemberStatus.active
+        )
+        
+        members = query.all()
+        
+        # Convert to response format
+        admin_responses = []
+        for member in members:
+            email = None
+            if member.user_profile and member.user_profile.email:
+                email = member.user_profile.email
+            elif member.invite_email and not member.user_id:
+                email = member.invite_email
+            
+            full_name = None
+            if member.user_profile:
+                full_name = member.user_profile.full_name
+            
+            admin_responses.append(schemas.AccountResponse(
+                id=member.id,
+                organization_id=member.organization_id,
+                user_id=member.user_id,
+                invite_email=member.invite_email,
+                email=email,
+                full_name=full_name,
+                role=member.role,
+                status=member.status,
+                joined_at=member.joined_at
+            ))
+        
+        return admin_responses
+        
+    except Exception as e:
+        logger.error(f"Error listing admins: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list admins: {str(e)}"
         )

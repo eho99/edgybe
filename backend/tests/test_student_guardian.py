@@ -224,6 +224,7 @@ def test_get_student_guardians_multiple_guardians_with_emails(client: TestClient
     
     # Verify both guardians have emails retrieved via relationship
     guardian_emails = {g["guardian_email"] for g in data["guardians"]}
+    print(guardian_emails)
     assert "first.guardian@example.com" in guardian_emails
     assert "second.guardian@example.com" in guardian_emails
     
@@ -258,6 +259,7 @@ def test_get_student_guardians_guardian_without_email(client: TestClient, db_ses
     
     assert response.status_code == 200
     data = response.json()
+    print(data)
     assert len(data["guardians"]) == 1
     
     guardian_entry = data["guardians"][0]

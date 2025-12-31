@@ -26,6 +26,7 @@ export interface Organization {
   sis_client_id: string | null
   sis_client_secret: string | null
   disclaimers: Record<string, unknown> | null
+  assignment_config: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -35,6 +36,12 @@ export interface OrganizationMembership {
   role: string
   organization_name: string
   joined_at: string
+}
+
+export interface Disclaimers {
+  general?: string
+  self_harm?: string
+  child_abuse?: string
 }
 
 export type OrganizationWithRole = Organization & { role?: string }
@@ -57,6 +64,7 @@ interface OrganizationBasePayload {
   sis_client_id?: string
   sis_client_secret?: string
   disclaimers?: Record<string, unknown>
+  assignment_config?: Record<string, unknown> | null
 }
 
 export type OrganizationCreatePayload = {
@@ -94,6 +102,19 @@ export const useOrganizations = () => {
     isLoading: isLoading || membershipsLoading,
     error: error || membershipsError,
     mutate,
+  }
+}
+
+export function useOrganization(orgId: string | null) {
+  const { data, error, isLoading } = useSWR<Organization>(
+    orgId ? `${ORGANIZATIONS_ENDPOINT}/${orgId}` : null,
+    apiClient
+  )
+
+  return {
+    organization: data,
+    isLoading,
+    error,
   }
 }
 

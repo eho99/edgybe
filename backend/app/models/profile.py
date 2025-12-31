@@ -53,5 +53,6 @@ class Profile(Base):
     # Referrals relationships
     student_referrals = relationship("Referral", foreign_keys="Referral.student_id", back_populates="student")
     authored_referrals = relationship("Referral", foreign_keys="Referral.author_id", back_populates="author")
+    assigned_referrals = relationship("Referral", foreign_keys="Referral.assigned_admin_id", back_populates="assigned_admin")
     created_interventions = relationship("Intervention", foreign_keys="Intervention.created_by", back_populates="creator")
     created_email_templates = relationship("EmailTemplate", foreign_keys="EmailTemplate.created_by_user_id", back_populates="creator")

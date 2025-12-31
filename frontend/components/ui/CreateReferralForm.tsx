@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   useReferralConfig,
   createReferral,
@@ -8,6 +8,7 @@ import {
   type ReferralFieldConfig,
   type ReferralFieldSelection,
 } from '@/hooks/useReferrals'
+import { useOrganization, type Disclaimers } from '@/hooks/useOrganizations'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,6 +19,7 @@ import { useToast } from '@/hooks/useToast'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { Loader } from '@/components/ui/loader'
 import { StudentSearchSelect } from '@/components/ui/StudentSearchSelect'
+import { DisclaimerModal } from '@/components/ui/DisclaimerModal'
 
 interface CreateReferralFormProps {
   orgId: string
@@ -29,10 +31,11 @@ type ReferralFormState = {
   student_id: string
   type: string
   location: string
-  location_custom: string
+  location_other: string
   time_of_day: string
-  time_of_day_custom: string
+  time_of_day_other: string
   behaviors: string[]
+  behaviors_other: string
   description: string
 }
 
@@ -40,10 +43,11 @@ const createEmptyFormState = (): ReferralFormState => ({
   student_id: '',
   type: '',
   location: '',
-  location_custom: '',
+  location_other: '',
   time_of_day: '',
-  time_of_day_custom: '',
+  time_of_day_other: '',
   behaviors: [],
+  behaviors_other: '',
   description: '',
 })
 
@@ -53,6 +57,7 @@ type NormalizedFieldConfig = {
   required: boolean
   selection: ReferralFieldSelection
   options: string[]
+  allowOther: boolean
 }
 
 const normalizeFieldConfig = (
@@ -67,11 +72,30 @@ const normalizeFieldConfig = (
     required: Boolean(field?.required),
     selection: field?.selection === 'multi' ? 'multi' : fallback.selection ?? 'single',
     options,
+    allowOther: Boolean(field?.allowOther),
   }
+}
+
+type DisclaimerKey = 'general' | 'self_harm' | 'child_abuse'
+
+const DISCLAIMER_TITLES: Record<DisclaimerKey, string> = {
+  general: 'Important Notice',
+  self_harm: 'Self-Harm Disclaimer',
+  child_abuse: 'Child Abuse Disclaimer',
+}
+
+// Normalize behavior name to match disclaimer keys
+// "Self-Harm" -> "self_harm", "Child Abuse" -> "child_abuse"
+const normalizeToDisclaimerKey = (behavior: string): DisclaimerKey | null => {
+  const normalized = behavior.toLowerCase().replace(/[\s-]+/g, '_')
+  if (normalized.includes('self_harm')) return 'self_harm'
+  if (normalized.includes('child_abuse')) return 'child_abuse'
+  return null
 }
 
 export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferralFormProps) {
   const { config, isLoading: configLoading } = useReferralConfig(orgId)
+  const { organization, isLoading: orgLoading } = useOrganization(orgId)
   const { toast } = useToast()
   const { handleError } = useErrorHandler()
 
@@ -80,15 +104,69 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
   // Form state
   const [formData, setFormData] = useState<ReferralFormState>(createEmptyFormState)
 
-  const resetForm = () => setFormData(createEmptyFormState())
+  // Disclaimer state
+  const [acknowledgedDisclaimers, setAcknowledgedDisclaimers] = useState<Set<DisclaimerKey>>(new Set())
+  const [pendingDisclaimer, setPendingDisclaimer] = useState<DisclaimerKey | null>(null)
+  const [pendingBehavior, setPendingBehavior] = useState<string | null>(null)
 
+  // Get typed disclaimers from organization
+  const disclaimers: Disclaimers = (organization?.disclaimers as Disclaimers) ?? {}
+
+  // Show general disclaimer on mount if it exists and hasn't been acknowledged
+  useEffect(() => {
+    if (!orgLoading && disclaimers.general && !acknowledgedDisclaimers.has('general')) {
+      setPendingDisclaimer('general')
+    }
+  }, [orgLoading, disclaimers.general, acknowledgedDisclaimers])
+
+  const handleDisclaimerAcknowledge = useCallback(() => {
+    if (pendingDisclaimer) {
+      setAcknowledgedDisclaimers((prev) => new Set(prev).add(pendingDisclaimer))
+      
+      // If acknowledging a behavior-specific disclaimer, add the behavior to form
+      if (pendingBehavior && pendingDisclaimer !== 'general') {
+        setFormData((prev) => ({
+          ...prev,
+          behaviors: [...prev.behaviors, pendingBehavior],
+        }))
+      }
+      
+      setPendingDisclaimer(null)
+      setPendingBehavior(null)
+    }
+  }, [pendingDisclaimer, pendingBehavior])
+
+  const resetForm = () => {
+    setFormData(createEmptyFormState())
+    // Keep general disclaimer acknowledged, but reset behavior-specific ones
+    setAcknowledgedDisclaimers((prev) => {
+      const newSet = new Set<DisclaimerKey>()
+      if (prev.has('general')) newSet.add('general')
+      return newSet
+    })
+  }
 
   const handleBehaviorToggle = (behavior: string) => {
+    const isAdding = !formData.behaviors.includes(behavior)
+    
+    if (isAdding) {
+      // Check if this behavior requires a disclaimer
+      const disclaimerKey = normalizeToDisclaimerKey(behavior)
+      
+      if (disclaimerKey && disclaimers[disclaimerKey] && !acknowledgedDisclaimers.has(disclaimerKey)) {
+        // Show disclaimer modal before adding the behavior
+        setPendingDisclaimer(disclaimerKey)
+        setPendingBehavior(behavior)
+        return
+      }
+    }
+    
+    // No disclaimer needed or removing behavior
     setFormData((prev) => ({
       ...prev,
-      behaviors: prev.behaviors.includes(behavior)
-        ? prev.behaviors.filter((b) => b !== behavior)
-        : [...prev.behaviors, behavior],
+      behaviors: isAdding
+        ? [...prev.behaviors, behavior]
+        : prev.behaviors.filter((b) => b !== behavior),
     }))
   }
 
@@ -125,23 +203,29 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
         description: formData.description || undefined,
       }
 
-      // Handle location (use custom if "Other" selected)
-      if (formData.location === 'Other') {
-        payload.location = formData.location_custom
-      } else if (formData.location) {
+      // Handle location (use other text if "Other" selected)
+      if (formData.location === 'Other' && formData.location_other.trim()) {
+        payload.location = formData.location_other.trim()
+      } else if (formData.location && formData.location !== 'Other') {
         payload.location = formData.location
       }
 
-      // Handle time_of_day (use custom if "Other" selected)
-      if (formData.time_of_day === 'Other') {
-        payload.time_of_day = formData.time_of_day_custom
-      } else if (formData.time_of_day) {
+      // Handle time_of_day (use other text if "Other" selected)
+      if (formData.time_of_day === 'Other' && formData.time_of_day_other.trim()) {
+        payload.time_of_day = formData.time_of_day_other.trim()
+      } else if (formData.time_of_day && formData.time_of_day !== 'Other') {
         payload.time_of_day = formData.time_of_day
       }
 
-      // Add behaviors if any selected
-      if (formData.behaviors.length > 0) {
-        payload.behaviors = formData.behaviors
+      // Handle behaviors - include "Other" text if behaviors_other is set
+      const behaviorValues = [...formData.behaviors]
+      if (behaviorValues.includes('Other') && formData.behaviors_other.trim()) {
+        // Replace "Other" with the custom text
+        const otherIndex = behaviorValues.indexOf('Other')
+        behaviorValues[otherIndex] = formData.behaviors_other.trim()
+      }
+      if (behaviorValues.length > 0) {
+        payload.behaviors = behaviorValues.filter((b) => b !== 'Other' || formData.behaviors_other.trim())
       }
 
       // Create referral
@@ -164,7 +248,7 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
     }
   }
 
-  if (configLoading) {
+  if (configLoading || orgLoading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12">
@@ -209,8 +293,22 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
     )
   }
 
+  // Check if general disclaimer is required but not yet acknowledged (blocks form access)
+  const isBlocked = disclaimers.general && !acknowledgedDisclaimers.has('general')
+
   return (
-    <Card>
+    <>
+      {/* Disclaimer Modal */}
+      {pendingDisclaimer && disclaimers[pendingDisclaimer] && (
+        <DisclaimerModal
+          open={true}
+          title={DISCLAIMER_TITLES[pendingDisclaimer]}
+          content={disclaimers[pendingDisclaimer]!}
+          onAcknowledge={handleDisclaimerAcknowledge}
+        />
+      )}
+
+      <Card className={isBlocked ? 'pointer-events-none opacity-50' : ''}>
       <CardHeader>
         <CardTitle>Create Student Referral</CardTitle>
         <CardDescription>
@@ -269,7 +367,7 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
                 setFormData((prev) => ({
                   ...prev,
                   location: value,
-                  location_custom: value === 'Other' ? prev.location_custom : '',
+                  location_other: value === 'Other' ? prev.location_other : '',
                 }))
               }
             >
@@ -278,11 +376,16 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
               </SelectTrigger>
               <SelectContent>
                 {locationField.options.length > 0 ? (
-                  locationField.options.map((location) => (
-                    <SelectItem key={location} value={location}>
-                      {location}
-                    </SelectItem>
-                  ))
+                  <>
+                    {locationField.options.map((location) => (
+                      <SelectItem key={location} value={location}>
+                        {location}
+                      </SelectItem>
+                    ))}
+                    {locationField.allowOther && (
+                      <SelectItem value="Other">Other</SelectItem>
+                    )}
+                  </>
                 ) : (
                   <div className="px-2 py-1 text-sm text-muted-foreground">
                     No locations available
@@ -290,12 +393,12 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
                 )}
               </SelectContent>
             </Select>
-              {formData.location === 'Other' && (
+            {formData.location === 'Other' && locationField.allowOther && (
               <Input
                 placeholder="Specify location"
-                value={formData.location_custom}
+                value={formData.location_other}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, location_custom: e.target.value }))
+                  setFormData((prev) => ({ ...prev, location_other: e.target.value }))
                 }
                 className="mt-2"
               />
@@ -319,7 +422,7 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
                 setFormData((prev) => ({
                   ...prev,
                   time_of_day: value,
-                  time_of_day_custom: value === 'Other' ? prev.time_of_day_custom : '',
+                  time_of_day_other: value === 'Other' ? prev.time_of_day_other : '',
                 }))
               }
             >
@@ -328,11 +431,16 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
               </SelectTrigger>
               <SelectContent>
                 {timeOfDayField.options.length > 0 ? (
-                  timeOfDayField.options.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))
+                  <>
+                    {timeOfDayField.options.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                    {timeOfDayField.allowOther && (
+                      <SelectItem value="Other">Other</SelectItem>
+                    )}
+                  </>
                 ) : (
                   <div className="px-2 py-1 text-sm text-muted-foreground">
                     No time of day options available
@@ -340,12 +448,12 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
                 )}
               </SelectContent>
             </Select>
-            {formData.time_of_day === 'Other' && (
+            {formData.time_of_day === 'Other' && timeOfDayField.allowOther && (
               <Input
                 placeholder="Specify time"
-                value={formData.time_of_day_custom}
+                value={formData.time_of_day_other}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, time_of_day_custom: e.target.value }))
+                  setFormData((prev) => ({ ...prev, time_of_day_other: e.target.value }))
                 }
                 className="mt-2"
               />
@@ -365,27 +473,54 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
             </div>
             <div className="grid grid-cols-2 gap-3">
               {behaviorsField.options.length > 0 ? (
-                behaviorsField.options.map((behavior) => (
-                <div key={behavior} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`behavior-${behavior}`}
-                    checked={formData.behaviors.includes(behavior)}
-                    onCheckedChange={() => handleBehaviorToggle(behavior)}
-                  />
-                  <label
-                    htmlFor={`behavior-${behavior}`}
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    {behavior}
-                  </label>
-                </div>
-              ))
+                <>
+                  {behaviorsField.options.map((behavior) => (
+                    <div key={behavior} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`behavior-${behavior}`}
+                        checked={formData.behaviors.includes(behavior)}
+                        onCheckedChange={() => handleBehaviorToggle(behavior)}
+                      />
+                      <label
+                        htmlFor={`behavior-${behavior}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {behavior}
+                      </label>
+                    </div>
+                  ))}
+                  {behaviorsField.allowOther && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="behavior-Other"
+                        checked={formData.behaviors.includes('Other')}
+                        onCheckedChange={() => handleBehaviorToggle('Other')}
+                      />
+                      <label
+                        htmlFor="behavior-Other"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Other
+                      </label>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="col-span-2 text-sm text-muted-foreground">
                   No behaviors available
                 </div>
               )}
             </div>
+            {formData.behaviors.includes('Other') && behaviorsField.allowOther && (
+              <Input
+                placeholder="Specify behavior"
+                value={formData.behaviors_other}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, behaviors_other: e.target.value }))
+                }
+                className="mt-2"
+              />
+            )}
           </div>
 
           {/* Description */}
@@ -425,6 +560,7 @@ export function CreateReferralForm({ orgId, onSuccess, onCancel }: CreateReferra
         </form>
       </CardContent>
     </Card>
+    </>
   )
 }
 
