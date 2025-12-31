@@ -5,6 +5,9 @@ from ..db import get_db
 from ..models.organization_member import OrganizationMember, OrgRole, MemberStatus
 from pydantic import UUID4
 from typing import List, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/v1/organizations",
@@ -295,13 +298,32 @@ async def update_organization(
     _reject_district_assignment(payload)
 
     update_data = organization_update.model_dump(exclude_unset=True)
+    
+    # Explicitly handle assignment_config from raw payload
+    # This ensures it's processed even when None (to allow clearing the config)
+    # Pydantic's exclude_unset=True might exclude None values that match defaults
+    if "assignment_config" in payload:
+        logger.info(f"Received assignment_config in payload: {payload['assignment_config']}")
+        # Always include assignment_config if it's in the payload, even if None
+        update_data["assignment_config"] = payload["assignment_config"]
+        logger.info(f"Setting assignment_config in update_data: {update_data.get('assignment_config')}")
 
+    logger.info(f"Update data keys: {list(update_data.keys())}")
+    logger.info(f"assignment_config in update_data: {'assignment_config' in update_data}")
+
+    # Apply updates
     for key, value in update_data.items():
         setattr(organization, key, value)
-
+    
+    # Verify assignment_config was set
+    logger.info(f"Organization assignment_config after setattr: {organization.assignment_config}")
+    
     db.add(organization)
     db.commit()
     db.refresh(organization)
+    
+    # Verify after commit
+    logger.info(f"Organization assignment_config after commit: {organization.assignment_config}")
     
     # Reload with district relationship
     organization = (

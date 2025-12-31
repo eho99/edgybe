@@ -57,6 +57,10 @@ class OrganizationUpdate(BaseModel):
     disclaimers: Optional[dict] = None
     assignment_config: Optional[dict] = None
     
+    class Config:
+        # Use Pydantic v2 config if needed
+        from_attributes = True
+    
     @model_validator(mode='after')
     def validate_grade_range(self):
         """Ensure lower_grade <= upper_grade if both are provided."""

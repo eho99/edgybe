@@ -8,6 +8,7 @@ import {
   type OrganizationUpdatePayload,
 } from '@/hooks/useOrganizations'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -309,6 +310,57 @@ const buildDisclaimerPayload = (state: DisclaimerState) => {
   return payload
 }
 
+const buildAssignmentConfigPayload = (config: AssignmentConfig | null): Record<string, unknown> | null => {
+  if (!config || config.type === null || config.type === 'manual') {
+    return null
+  }
+
+
+  // Clean up the config to ensure it matches backend expectations
+  const cleaned: Record<string, unknown> = {
+    type: config.type,
+  }
+
+  if (config.type === 'grade') {
+    // Always include grade_mappings, even if empty (allows saving type selection before mappings are added)
+    const gradeMappings: Record<string, string> = {}
+    if (config.grade_mappings) {
+      // Filter out temporary keys and empty values, but keep valid mappings
+      for (const [grade, adminId] of Object.entries(config.grade_mappings)) {
+        // Skip temporary keys and empty values
+        // Ensure adminId is a non-empty string
+        const adminIdStr = typeof adminId === 'string' ? adminId.trim() : String(adminId || '').trim()
+        if (grade && !grade.startsWith('__temp_') && grade.trim() && adminIdStr) {
+          gradeMappings[grade.trim()] = adminIdStr
+        }
+      }
+    }
+    // Always include grade_mappings (even if empty) - this allows saving the type selection
+    cleaned.grade_mappings = gradeMappings
+  }
+
+  if (config.type === 'alphabetical') {
+    // Always include letter_ranges, even if empty (allows saving type selection before ranges are added)
+    const letterRanges: Record<string, string> = {}
+    if (config.letter_ranges) {
+      // Filter out temporary keys and empty values, but keep valid mappings
+      for (const [range, adminId] of Object.entries(config.letter_ranges)) {
+        // Skip temporary keys and empty values
+        // Ensure adminId is a non-empty string
+        const adminIdStr = typeof adminId === 'string' ? adminId.trim() : String(adminId || '').trim()
+        if (range && !range.startsWith('__temp_') && range.trim() && adminIdStr) {
+          letterRanges[range.trim()] = adminIdStr
+        }
+      }
+    }
+    // Always include letter_ranges (even if empty) - this allows saving the type selection
+    cleaned.letter_ranges = letterRanges
+    cleaned.name_field = config.name_field || 'last_name'
+  }
+
+  return cleaned
+}
+
 export default function SchoolSettingsPage() {
   const { organizations, isLoading, error, mutate } = useOrganizations()
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null)
@@ -378,7 +430,7 @@ export default function SchoolSettingsPage() {
       throw new Error('Organization name is required')
     }
 
-    return {
+    const payload: OrganizationUpdatePayload = {
       name,
       street_number: toOptionalString(formState.street_number),
       street_name: toOptionalString(formState.street_name),
@@ -397,8 +449,14 @@ export default function SchoolSettingsPage() {
       sis_client_id: toOptionalString(formState.sis_client_id),
       sis_client_secret: toOptionalString(formState.sis_client_secret),
       disclaimers: buildDisclaimerPayload(disclaimers),
-      assignment_config: assignmentConfig ?? undefined,
     }
+
+    // Always include assignment_config - null to clear, object to set
+    // We need to explicitly include it even if null so the backend knows to update it
+    const assignmentConfigPayload = buildAssignmentConfigPayload(assignmentConfig)
+    payload.assignment_config = assignmentConfigPayload
+
+    return payload
   }
 
   const handleSave = async () => {
@@ -511,187 +569,209 @@ export default function SchoolSettingsPage() {
         <div className="space-y-6">
           {selectedOrg ? (
             <>
-              {/* Card 1: School Profile */}
-              <Card className="border-muted">
-                <CardHeader>
-                  <CardTitle>School Profile</CardTitle>
-                  <CardDescription>
-                    Basic information, contact details, and administrative settings for {selectedOrg.name}.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Quick Summary</h3>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <SummaryItem label='District Name' value={selectedOrg.district_name ?? '—'} />
-                      <SummaryItem label='Phone' value={selectedOrg.phone_number ?? '—'} />
-                      <SummaryItem
-                        label='Address'
-                        value={[selectedOrg.street_number, selectedOrg.street_name].filter(Boolean).join(' ') || '—'}
-                      />
-                      <SummaryItem
-                        label='Location'
-                        value={[selectedOrg.city, selectedOrg.state, selectedOrg.zip_code].filter(Boolean).join(', ') || '—'}
-                      />
-                      <SummaryItem
-                        label='Grades'
-                        value={
-                          selectedOrg.lower_grade !== null || selectedOrg.upper_grade !== null
-                            ? `${selectedOrg.lower_grade ?? '—'} - ${selectedOrg.upper_grade ?? '—'}`
-                            : '—'
-                        }
-                      />
-                      <SummaryItem label='Aeries Code' value={selectedOrg.aeries_school_code ?? '—'} />
-                    </div>
+              {/* Sticky Save Button Header */}
+              <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b pb-4 -mx-6 px-6 pt-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-semibold">{selectedOrg.name}</h2>
+                    <p className="text-sm text-muted-foreground">Configure organization settings</p>
                   </div>
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (!selectedOrg) return
+                        setFormState(convertOrgToFormState(selectedOrg))
+                        setPresetEntries(convertPresetConfigToEntries(selectedOrg.preset_config))
+                        setDisclaimers(convertDisclaimers(selectedOrg.disclaimers))
+                        setAssignmentConfig(
+                          (selectedOrg.assignment_config as AssignmentConfig | null) ?? null
+                        )
+                        setFormError(null)
+                        setSuccessMessage(null)
+                      }}
+                      disabled={isSaving}
+                    >
+                      Reset
+                    </Button>
+                    <Button onClick={handleSave} disabled={isSaving || !selectedOrg} size="lg">
+                      {isSaving ? 'Saving...' : 'Save Settings'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
 
-                  <div className="border-t pt-6 space-y-6">
-                    {fieldGroups.map((group) => (
-                      <div key={group.title} className="space-y-3">
-                        <h4 className="text-base font-semibold">{group.title}</h4>
-                        <div className="grid gap-4 md:grid-cols-2">
-                          {group.fields.map((field) => {
-                            const fieldType = 'type' in field ? field.type : undefined
-                            return (
-                              <div key={field.name}>
-                                <Label htmlFor={field.name}>{field.label}</Label>
-                                <Input
-                                  id={field.name}
-                                  name={field.name}
-                                  type={fieldType ?? 'text'}
-                                  value={formState[field.name as keyof OrganizationFormState]}
-                                  placeholder={field.placeholder}
+              {/* Collapsible Configuration Sections */}
+              <Accordion type="multiple" defaultValue={['profile', 'referral', 'assignment']} className="space-y-4">
+                {/* Section 1: School Profile */}
+                <AccordionItem value="profile" className="border rounded-lg px-6">
+                  <AccordionTrigger className="text-lg font-semibold hover:no-underline py-4">
+                    School Profile
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-6">
+                    <Card className="border-0 shadow-none">
+                      <CardContent className="space-y-6 pt-0">
+                        <div className="space-y-4">
+                          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Quick Summary</h3>
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <SummaryItem label='District Name' value={selectedOrg.district_name ?? '—'} />
+                            <SummaryItem label='Phone' value={selectedOrg.phone_number ?? '—'} />
+                            <SummaryItem
+                              label='Address'
+                              value={[selectedOrg.street_number, selectedOrg.street_name].filter(Boolean).join(' ') || '—'}
+                            />
+                            <SummaryItem
+                              label='Location'
+                              value={[selectedOrg.city, selectedOrg.state, selectedOrg.zip_code].filter(Boolean).join(', ') || '—'}
+                            />
+                            <SummaryItem
+                              label='Grades'
+                              value={
+                                selectedOrg.lower_grade !== null || selectedOrg.upper_grade !== null
+                                  ? `${selectedOrg.lower_grade ?? '—'} - ${selectedOrg.upper_grade ?? '—'}`
+                                  : '—'
+                              }
+                            />
+                            <SummaryItem label='Aeries Code' value={selectedOrg.aeries_school_code ?? '—'} />
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-6 space-y-6">
+                          {fieldGroups.map((group) => (
+                            <div key={group.title} className="space-y-3">
+                              <h4 className="text-base font-semibold">{group.title}</h4>
+                              <div className="grid gap-4 md:grid-cols-2">
+                                {group.fields.map((field) => {
+                                  const fieldType = 'type' in field ? field.type : undefined
+                                  return (
+                                    <div key={field.name}>
+                                      <Label htmlFor={field.name}>{field.label}</Label>
+                                      <Input
+                                        id={field.name}
+                                        name={field.name}
+                                        type={fieldType ?? 'text'}
+                                        value={formState[field.name as keyof OrganizationFormState]}
+                                        placeholder={field.placeholder}
+                                        onChange={(event) =>
+                                          handleInputChange(field.name as keyof OrganizationFormState, event.target.value)
+                                        }
+                                        disabled={isSaving}
+                                      />
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </AccordionContent>
+                </AccordionItem>
+
+                {/* Section 2: Referral Creation Settings */}
+                <AccordionItem value="referral" className="border rounded-lg px-6">
+                  <AccordionTrigger className="text-lg font-semibold hover:no-underline py-4">
+                    Referral Creation Settings
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-6">
+                    <Card className="border-0 shadow-none">
+                      <CardHeader className="px-0 pt-0">
+                        <div className="flex items-start justify-between gap-4">
+                          <CardDescription>
+                            Configure the fields, options, and disclaimers used when staff create referrals.
+                          </CardDescription>
+                          <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" type="button" className="shrink-0">
+                                <Eye className="mr-2 h-4 w-4" />
+                                Preview Form
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle>Referral Form Preview</DialogTitle>
+                                <DialogDescription>
+                                  This is how your referral intake form will appear to staff members when creating referrals.
+                                  Fields marked with * are required.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="mt-4 -mx-6 px-6">
+                                <FormPreview entries={presetEntries} />
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-8 px-0">
+                        <div className="space-y-3">
+                          <h4 className="text-base font-semibold">Referral field presets</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Define dropdown and checkbox options used in referral forms (locations, times, behaviors, and other
+                            site-specific fields).
+                          </p>
+                          <PresetConfigEditor entries={presetEntries} onChange={setPresetEntries} disabled={isSaving} />
+                        </div>
+
+                        <div className="border-t pt-6 space-y-4">
+                          <div>
+                            <h4 className="text-base font-semibold">Disclaimers</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Control the language shown before submitting referrals, including sensitive self-harm and child abuse
+                              notices.
+                            </p>
+                          </div>
+                          <div className="space-y-4">
+                            {(Object.keys(disclaimerLabels) as DisclaimerKey[]).map((key) => (
+                              <div key={key} className="space-y-2">
+                                <Label htmlFor={`disclaimer-${key}`}>{disclaimerLabels[key]}</Label>
+                                <Textarea
+                                  id={`disclaimer-${key}`}
+                                  value={disclaimers[key]}
                                   onChange={(event) =>
-                                    handleInputChange(field.name as keyof OrganizationFormState, event.target.value)
+                                    setDisclaimers((prev) => ({
+                                      ...prev,
+                                      [key]: event.target.value,
+                                    }))
                                   }
+                                  className={textareaClass}
+                                  rows={6}
                                   disabled={isSaving}
                                 />
                               </div>
-                            )
-                          })}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                      </CardContent>
+                    </Card>
+                  </AccordionContent>
+                </AccordionItem>
 
-              {/* Card 2: Referral Creation Settings */}
-              <Card className="border-muted">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <CardTitle>Referral Creation Settings</CardTitle>
-                      <CardDescription className="mt-1.5">
-                        Configure the fields, options, and disclaimers used when staff create referrals.
-                      </CardDescription>
-                    </div>
-                    <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" type="button" className="shrink-0">
-                          <Eye className="mr-2 h-4 w-4" />
-                          Preview Form
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle>Referral Form Preview</DialogTitle>
-                          <DialogDescription>
-                            This is how your referral intake form will appear to staff members when creating referrals.
-                            Fields marked with * are required.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="mt-4 -mx-6 px-6">
-                          <FormPreview entries={presetEntries} />
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-8">
-                  <div className="space-y-3">
-                    <h4 className="text-base font-semibold">Referral field presets</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Define dropdown and checkbox options used in referral forms (locations, times, behaviors, and other
-                      site-specific fields).
-                    </p>
-                    <PresetConfigEditor entries={presetEntries} onChange={setPresetEntries} disabled={isSaving} />
-                  </div>
-
-                  <div className="border-t pt-6 space-y-4">
-                    <div>
-                      <h4 className="text-base font-semibold">Disclaimers</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Control the language shown before submitting referrals, including sensitive self-harm and child abuse
-                        notices.
-                      </p>
-                    </div>
-                    <div className="space-y-4">
-                      {(Object.keys(disclaimerLabels) as DisclaimerKey[]).map((key) => (
-                        <div key={key} className="space-y-2">
-                          <Label htmlFor={`disclaimer-${key}`}>{disclaimerLabels[key]}</Label>
-                          <Textarea
-                            id={`disclaimer-${key}`}
-                            value={disclaimers[key]}
-                            onChange={(event) =>
-                              setDisclaimers((prev) => ({
-                                ...prev,
-                                [key]: event.target.value,
-                              }))
-                            }
-                            className={textareaClass}
-                            rows={6}
-                            disabled={isSaving}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Card 3: Admin Assignment Settings */}
-              <Card className="border-muted">
-                <CardHeader>
-                  <CardTitle>Admin Assignment Settings</CardTitle>
-                  <CardDescription>
-                    Configure automatic assignment of referrals to admins based on grade level or alphabetical order.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <AssignmentConfigEditor
-                    orgId={selectedOrg.id}
-                    config={assignmentConfig}
-                    onChange={setAssignmentConfig}
-                    disabled={isSaving}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    if (!selectedOrg) return
-                    setFormState(convertOrgToFormState(selectedOrg))
-                    setPresetEntries(convertPresetConfigToEntries(selectedOrg.preset_config))
-                    setDisclaimers(convertDisclaimers(selectedOrg.disclaimers))
-                    setAssignmentConfig(
-                      (selectedOrg.assignment_config as AssignmentConfig | null) ?? null
-                    )
-                    setFormError(null)
-                    setSuccessMessage(null)
-                  }}
-                  disabled={isSaving}
-                >
-                  Reset
-                </Button>
-                <Button onClick={handleSave} disabled={isSaving || !selectedOrg}>
-                  {isSaving ? 'Saving...' : 'Save Settings'}
-                </Button>
-              </div>
+                {/* Section 3: Admin Assignment Settings */}
+                <AccordionItem value="assignment" className="border rounded-lg px-6">
+                  <AccordionTrigger className="text-lg font-semibold hover:no-underline py-4">
+                    Admin Assignment Settings
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-6">
+                    <Card className="border-0 shadow-none">
+                      <CardHeader className="px-0 pt-0">
+                        <CardDescription>
+                          Configure automatic assignment of referrals to admins based on grade level or alphabetical order.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="px-0">
+                        <AssignmentConfigEditor
+                          orgId={selectedOrg.id}
+                          config={assignmentConfig}
+                          onChange={setAssignmentConfig}
+                          disabled={isSaving}
+                        />
+                      </CardContent>
+                    </Card>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </>
           ) : (
             <Card className="border-muted">

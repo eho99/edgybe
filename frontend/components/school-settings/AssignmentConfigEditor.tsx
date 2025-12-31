@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
@@ -34,6 +34,14 @@ export function AssignmentConfigEditor({
     config?.type ?? null
   )
 
+  // Sync assignmentType when config changes from parent
+  useEffect(() => {
+    const newType = config?.type ?? null
+    if (newType !== assignmentType) {
+      setAssignmentType(newType)
+    }
+  }, [config?.type, assignmentType])
+
   const gradeMappings = useMemo(
     () => config?.grade_mappings ?? {},
     [config?.grade_mappings]
@@ -55,29 +63,33 @@ export function AssignmentConfigEditor({
       if (newType === 'manual' || newType === null) {
         onChange(null)
       } else {
+        // Preserve existing mappings when switching types
         const newConfig: AssignmentConfig = {
           type: newType,
         }
         if (newType === 'grade') {
-          newConfig.grade_mappings = {}
+          // Use current gradeMappings if switching to grade, or preserve if already grade
+          newConfig.grade_mappings = config?.type === 'grade' ? gradeMappings : (config?.grade_mappings ?? {})
         } else if (newType === 'alphabetical') {
-          newConfig.letter_ranges = {}
-          newConfig.name_field = 'last_name'
+          // Use current letterRanges if switching to alphabetical, or preserve if already alphabetical
+          newConfig.letter_ranges = config?.type === 'alphabetical' ? letterRanges : (config?.letter_ranges ?? {})
+          newConfig.name_field = config?.type === 'alphabetical' ? nameField : (config?.name_field || 'last_name')
         }
         onChange(newConfig)
       }
     },
-    [onChange]
+    [onChange, gradeMappings, letterRanges, nameField, config]
   )
 
   const handleGradeMappingRemove = useCallback(
     (grade: string) => {
       const newMappings = { ...gradeMappings }
       delete newMappings[grade]
-      onChange({
+      const newConfig: AssignmentConfig = {
         type: 'grade',
         grade_mappings: newMappings,
-      })
+      }
+      onChange(newConfig)
     },
     [gradeMappings, onChange]
   )
@@ -108,10 +120,11 @@ export function AssignmentConfigEditor({
       newMappings[grade] = selectedGradeAdmin
     })
 
-    onChange({
+    const newConfig: AssignmentConfig = {
       type: 'grade',
       grade_mappings: newMappings,
-    })
+    }
+    onChange(newConfig)
     
     // Clear inputs
     setGradeInputValue('')
@@ -123,11 +136,12 @@ export function AssignmentConfigEditor({
     (range: string) => {
       const newRanges = { ...letterRanges }
       delete newRanges[range]
-      onChange({
+      const newConfig: AssignmentConfig = {
         type: 'alphabetical',
         letter_ranges: newRanges,
         name_field: nameField,
-      })
+      }
+      onChange(newConfig)
     },
     [letterRanges, nameField, onChange]
   )
@@ -153,11 +167,12 @@ export function AssignmentConfigEditor({
       newRanges[range] = selectedLetterRangeAdmin
     })
 
-    onChange({
+    const newConfig: AssignmentConfig = {
       type: 'alphabetical',
       letter_ranges: { ...letterRanges, ...newRanges },
       name_field: nameField,
-    })
+    }
+    onChange(newConfig)
     
     // Clear inputs
     setLetterRangeInputValue('')
@@ -166,11 +181,12 @@ export function AssignmentConfigEditor({
 
   const handleNameFieldChange = useCallback(
     (field: 'first_name' | 'last_name') => {
-      onChange({
+      const newConfig: AssignmentConfig = {
         type: 'alphabetical',
         letter_ranges: letterRanges,
         name_field: field,
-      })
+      }
+      onChange(newConfig)
     },
     [letterRanges, onChange]
   )
