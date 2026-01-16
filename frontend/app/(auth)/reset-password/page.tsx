@@ -58,8 +58,8 @@ export default function ResetPasswordPage() {
           setIsProcessing(false)
         } else {
           // Check if user already has a session
-          const { data: { session } } = await supabase.auth.getSession()
-          if (session) {
+          const { data } = await supabase.auth.getSession()
+          if (data.session) {
             setIsProcessing(false)
           } else {
             setError('Invalid or expired password reset link. Please request a new one.')

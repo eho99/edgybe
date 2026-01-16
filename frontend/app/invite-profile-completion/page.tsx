@@ -49,7 +49,9 @@ export default function InviteProfileCompletionPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    const handleInvitationCallback = async () => {
+    let subscription: { unsubscribe: () => void } | null = null
+
+    const handleInvitation = async () => {
       try {        
         // Parse URL parameters
         const urlParams = new URLSearchParams(window.location.search)
@@ -68,7 +70,7 @@ export default function InviteProfileCompletionPage() {
         
         // If we have tokens in hash, set the session
         if (accessToken && refreshToken) {
-          const { data, error: setSessionError } = await supabase.auth.setSession({
+          const { error: setSessionError } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           })
@@ -78,50 +80,27 @@ export default function InviteProfileCompletionPage() {
             setIsProcessingInvite(false)
             return
           }
-          
-          if (data.session && data.user) {
-            setInviteData(data.user)
-            setIsProcessingInvite(false)
-            return
-          }
         }
+
+        // WAITING LOGIC: Check once, then listen
+        const { data: { session } } = await supabase.auth.getSession()
         
-        let sessionFound = false
-        let attempts = 0
-        const maxAttempts = 10
-        
-        while (!sessionFound && attempts < maxAttempts) {
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-          
-          if (session && session.user) {
-            setInviteData(session.user)
-            setIsProcessingInvite(false)
-            sessionFound = true
-            return
-          }
-          
-          // Wait before next attempt
-          await new Promise(resolve => setTimeout(resolve, 500))
-          attempts++
+        if (session?.user) {
+          setInviteData(session.user)
+          setIsProcessingInvite(false)
+        } else {
+          // If session isn't ready yet, listen for the event
+          const { data: { subscription: sub } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' && session?.user) {
+              setInviteData(session.user)
+              setIsProcessingInvite(false)
+              if (sub) {
+                sub.unsubscribe() // Clean up immediately
+              }
+            }
+          })
+          subscription = sub
         }
-        
-        // Listen for auth state changes as a fallback
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-          if (event === 'SIGNED_IN' && session && session.user) {
-            setInviteData(session.user)
-            setIsProcessingInvite(false)
-            subscription?.unsubscribe()
-          }
-        })
-        
-        // If we still haven't found a session after waiting, show error
-        setTimeout(() => {
-          if (!sessionFound) {
-            setError('Unable to process invitation. Please try clicking the invitation link again.')
-            setIsProcessingInvite(false)
-            subscription?.unsubscribe()
-          }
-        }, 5000)
         
       } catch (err) {
         setError('Failed to process invitation. Please try again.')
@@ -129,7 +108,13 @@ export default function InviteProfileCompletionPage() {
       }
     }
 
-    handleInvitationCallback()
+    handleInvitation()
+
+    return () => {
+      if (subscription) {
+        subscription.unsubscribe()
+      }
+    }
   }, [supabase, router])
 
   const handleSubmit = async (e: React.FormEvent) => {

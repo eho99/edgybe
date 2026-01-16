@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { useProfile } from '@/hooks/useProfile' // The hook we just created
-import { createClient } from '@/lib/supabase/client' // My existing Supabase client
+import { useProfile } from '@/hooks/useProfile'
+import { useSecurityGate } from '@/hooks/useSecurityGate'
 
 export default function AppLayout({
   children,
@@ -12,8 +12,8 @@ export default function AppLayout({
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
-  const { profile, isLoading, isError } = useProfile()
+  const { isAuthorized, isLoading: isAuthLoading } = useSecurityGate('/login')
+  const { profile, isLoading: isProfileLoading, isError } = useProfile()
 
   const needsProfileCompletion = useMemo(() => {
     if (!profile) {
@@ -27,50 +27,32 @@ export default function AppLayout({
   }, [profile])
 
   useEffect(() => {
-    const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) {
-        router.push('/login')
-        return
-      }
-
-      if (isLoading || isError) {
-        return
-      }
-
-      if (!profile) {
-        return
-      }
-
-      if (needsProfileCompletion && pathname !== '/invite-profile-completion') {
-        console.log('[AppLayout] Missing required profile fields, redirecting to invite-profile-completion')
-        router.push('/invite-profile-completion')
-      } else if (!needsProfileCompletion && pathname === '/invite-profile-completion') {
-        console.log('[AppLayout] Required profile fields present, redirecting to dashboard')
-        router.push('/dashboard')
-      }
+    // Only handle profile completion redirects if we're authorized and profile is loaded
+    if (isAuthLoading || isProfileLoading || isError || !isAuthorized) {
+      return
     }
 
-    checkSession()
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        router.push('/login')
-      }
-    })
-
-    return () => {
-      subscription?.unsubscribe()
+    if (!profile) {
+      return
     }
-  }, [router, supabase, profile, needsProfileCompletion, isLoading, isError, pathname])
 
-  // While profile is loading, show a spinner.
-  if (isLoading) {
+    if (needsProfileCompletion && pathname !== '/invite-profile-completion') {
+      console.log('[AppLayout] Missing required profile fields, redirecting to invite-profile-completion')
+      router.push('/invite-profile-completion')
+    } else if (!needsProfileCompletion && pathname === '/invite-profile-completion') {
+      console.log('[AppLayout] Required profile fields present, redirecting to dashboard')
+      router.push('/dashboard')
+    }
+  }, [router, profile, needsProfileCompletion, isAuthLoading, isProfileLoading, isError, isAuthorized, pathname])
+
+  // While auth or profile is loading, show a spinner.
+  if (isAuthLoading || isProfileLoading) {
     return <div>Loading user data...</div>
+  }
+
+  // If not authorized, don't render (useSecurityGate handles redirect)
+  if (!isAuthorized) {
+    return null
   }
 
   if (isError) {

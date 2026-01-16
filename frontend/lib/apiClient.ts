@@ -8,6 +8,7 @@ export class ApiError extends Error {
     }
 }
 
+
 /**
  * A type-safe, client-side API client that automatically handles
  * Supabase auth and JSON request/response bodies.
@@ -20,18 +21,19 @@ const apiClient = async <T>(
 ): Promise<T> => {
     const supabase = createClient()
 
-    const { data: { session } } = await supabase.auth.getSession()
+    // OPTIMIZATION: Use getSession() here. It's faster.
+    // We trust the backend to reject the token if it's forged or expired.
+    const { data } = await supabase.auth.getSession()
+    const accessToken = data.session?.access_token
 
-    const token = session?.access_token
-
-    if (!token) {
-        // This will be caught by your data fetching library or component boundary.
-        // You can use this to trigger a redirect to /login.
-        throw new Error('No authenticated session found. Please log in.')
+    if (!accessToken) {
+        // If no session exists locally, redirect immediately
+        window.location.href = '/login'
+        throw new Error('No session')
     }
 
     const headers = new Headers(options.headers || {})
-    headers.set('Authorization', `Bearer ${token}`)
+    headers.set('Authorization', `Bearer ${accessToken}`)
 
     const { body: originalBody, ...restOptions } = options
 
@@ -50,7 +52,7 @@ const apiClient = async <T>(
         }
     }
 
-    const fullUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}${url}`
+    const fullUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL!}${url}`
     let response: Response
 
     try {
@@ -62,6 +64,15 @@ const apiClient = async <T>(
     } catch (error) {
         // Handle network errors (e.g., failed to fetch)
         throw new Error('Network request failed. Please check your connection.')
+    }
+
+    // Global Error Boundary for Auth
+    if (response.status === 401) {
+        // The backend rejected the token (expired/invalid).
+        // Now we sign out on the frontend.
+        await supabase.auth.signOut()
+        window.location.href = '/login'
+        throw new Error('Session expired')
     }
 
     // Handle API errors

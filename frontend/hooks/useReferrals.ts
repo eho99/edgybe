@@ -529,9 +529,8 @@ export async function deleteEmailTemplate(
 // Helper function to get access token
 async function getAccessToken(): Promise<string> {
     const supabase = createClient()
-    const {
-        data: { session },
-    } = await supabase.auth.getSession()
-    return session?.access_token || ''
+    // FAST PATH: Just ask Supabase for the current session token
+    const { data } = await supabase.auth.getSession()
+    return data.session?.access_token || ''
 }
 

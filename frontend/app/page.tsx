@@ -17,10 +17,8 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function HomePage() {
   const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const isAuthenticated = Boolean(session);
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const isAuthenticated = !claimsError && Boolean(claimsData?.claims);
 
   return (
     <main className="min-h-screen bg-white text-slate-900">

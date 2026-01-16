@@ -36,10 +36,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setHasSession(Boolean(session));
+      const { data } = await supabase.auth.getSession();
+      setHasSession(!!data.session);
     };
 
     checkSession();
@@ -47,7 +45,7 @@ export default function LoginPage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setHasSession(Boolean(session));
+      setHasSession(!!session);
     });
 
     return () => {
