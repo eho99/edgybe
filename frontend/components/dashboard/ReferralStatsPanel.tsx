@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Loader } from "@/components/ui/loader"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorDisplay } from "@/components/error/ErrorDisplay"
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -289,8 +289,63 @@ export function ReferralStatsPanel({ orgId, config }: ReferralStatsPanelProps) {
         </div>
 
         {isLoading && !stats ? (
-          <div className="py-12">
-            <Loader />
+          <div className="space-y-6">
+            {/* Stats Cards Skeleton */}
+            <div className="grid gap-4 md:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-lg border border-border bg-background p-4">
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <Skeleton className="h-8 w-16" />
+                </div>
+              ))}
+            </div>
+
+            {/* Chart Panels Skeleton */}
+            <div className="grid gap-4 md:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-lg border border-border bg-background p-4 space-y-3">
+                  <Skeleton className="h-3 w-20" />
+                  {Array.from({ length: 4 }).map((_, j) => (
+                    <div key={j} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Skeleton className="h-3 w-24" />
+                        <Skeleton className="h-3 w-8" />
+                      </div>
+                      <Skeleton className="h-2 w-full rounded-full" />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Recent Referrals Skeleton */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="rounded-lg border border-muted/60 p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-5 w-16" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-3 w-20" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         ) : error ? (
           <ErrorDisplay

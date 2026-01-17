@@ -1,7 +1,7 @@
 "use client"
 
 import { useCurrentUserRole } from "@/hooks/useCurrentUserRole"
-import { PageLoader } from "@/components/ui/page-loader"
+import { PageSkeletonLoader } from "@/components/ui/page-skeleton-loader"
 import { ErrorDisplay } from "@/components/error/ErrorDisplay"
 import { ReferralStatsPanel } from "@/components/dashboard/ReferralStatsPanel"
 import { useReferralConfig } from "@/hooks/useReferrals"
@@ -11,7 +11,7 @@ export default function DashboardPage() {
   const { config } = useReferralConfig(orgId)
 
   if (isLoading) {
-    return <PageLoader text="Loading dashboard..." />
+    return <PageSkeletonLoader contentType="stats" showActions={false} />
   }
 
   if (error) {

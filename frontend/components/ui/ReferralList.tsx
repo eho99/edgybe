@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader } from '@/components/ui/loader'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useToast } from '@/hooks/useToast'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -191,8 +191,61 @@ export function ReferralList({ orgId, basePath = `/dashboard/organizations/${org
   if (isLoading && page === 1) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader />
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-6 w-24" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Filters Skeleton */}
+          <div className="mb-6 rounded-lg border-2 border-border/80 bg-muted/30 p-4">
+            <div className="mb-4 space-y-1">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Table Skeleton */}
+          <div className="rounded-lg border-2 border-border/80 bg-background">
+            <div className="p-4">
+              <div className="space-y-4">
+                {/* Table Header */}
+                <div className="grid grid-cols-9 gap-4 border-b border-border pb-2">
+                  {Array.from({ length: 9 }).map((_, i) => (
+                    <Skeleton key={i} className="h-4 w-full" />
+                  ))}
+                </div>
+
+                {/* Table Rows */}
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="grid grid-cols-9 gap-4 py-3 border-b border-border/50">
+                    {Array.from({ length: 9 }).map((_, j) => (
+                      <Skeleton key={j} className="h-4 w-full" />
+                    ))}
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination Skeleton */}
+              <div className="mt-6 flex items-center justify-between">
+                <Skeleton className="h-4 w-32" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-9 w-9" />
+                  <Skeleton className="h-9 w-9" />
+                  <Skeleton className="h-9 w-9" />
+                </div>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     )

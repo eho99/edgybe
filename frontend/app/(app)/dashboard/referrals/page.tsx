@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { ReferralList } from '@/components/ui/ReferralList'
 import { Button } from '@/components/ui/button'
 import { useCurrentUserRole } from '@/hooks/useCurrentUserRole'
-import { PageLoader } from '@/components/ui/page-loader'
+import { PageSkeletonLoader } from '@/components/ui/page-skeleton-loader'
 import { ErrorDisplay } from '@/components/error/ErrorDisplay'
 import { Plus, Settings } from 'lucide-react'
 
@@ -12,7 +12,7 @@ export default function ReferralsPage() {
   const { orgId, isAdmin, isLoading, error } = useCurrentUserRole()
 
   if (isLoading) {
-    return <PageLoader text="Loading referrals..." />
+    return <PageSkeletonLoader contentType="list" />
   }
 
   if (error) {

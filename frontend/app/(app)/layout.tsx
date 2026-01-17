@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useProfile } from '@/hooks/useProfile'
 import { useSecurityGate } from '@/hooks/useSecurityGate'
+import { AppSkeletonLoader } from '@/components/ui/app-skeleton-loader'
 
 export default function AppLayout({
   children,
@@ -45,9 +46,9 @@ export default function AppLayout({
     }
   }, [router, profile, needsProfileCompletion, isAuthLoading, isProfileLoading, isError, isAuthorized, pathname])
 
-  // While auth or profile is loading, show a spinner.
+  // While auth or profile is loading, show a skeleton loader.
   if (isAuthLoading || isProfileLoading) {
-    return <div>Loading user data...</div>
+    return <AppSkeletonLoader />
   }
 
   // If not authorized, don't render (useSecurityGate handles redirect)
@@ -79,6 +80,6 @@ export default function AppLayout({
   }
 
   // Fallback for loading states
-  return <div>Loading user data...</div>
+  return <AppSkeletonLoader />
 }
 
