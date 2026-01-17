@@ -1,7 +1,6 @@
 import useSWR, { KeyedMutator } from 'swr'
-import apiClient from '@/lib/apiClient' // My existing API client
+import apiClient from '@/lib/apiClient'
 
-// This is the shape of the data from backend/app/schemas.py -> ProfileSchema
 export interface UserProfile {
     id: string;
     full_name: string | null;
@@ -30,11 +29,11 @@ interface UseProfileResult {
 
 export function useProfile(): UseProfileResult {
     const { data, error, isLoading, mutate } = useSWR<UserProfile>(
-        '/api/v1/users/me/profile', // The backend endpoint
-        apiClient, // Pass apiClient directly to SWR
+        '/api/v1/users/me/profile',
+        apiClient,
         {
-            shouldRetryOnError: false, // Don't retry on 404/403
-            revalidateOnFocus: false, // Optional: disable re-fetching on window focus
+            shouldRetryOnError: false,
+            revalidateOnFocus: false,
         }
     );
 
@@ -42,6 +41,6 @@ export function useProfile(): UseProfileResult {
         profile: data,
         isLoading,
         isError: error,
-        mutateProfile: mutate, // Allows us to manually refetch data
+        mutateProfile: mutate,
     };
 }

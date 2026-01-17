@@ -36,10 +36,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setHasSession(Boolean(session));
+      const { data } = await supabase.auth.getSession();
+      setHasSession(!!data.session);
     };
 
     checkSession();
@@ -47,7 +45,7 @@ export default function LoginPage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setHasSession(Boolean(session));
+      setHasSession(!!session);
     });
 
     return () => {
@@ -80,31 +78,27 @@ export default function LoginPage() {
     setIsResetting(true);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/v1/users/request-password-reset`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email: resetEmail }),
+      const redirectTo = `${window.location.origin}/reset-password`;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo,
+      });
+
+      if (error) {
+        // Handle specific Supabase security limitation (Rate limit)
+        if (error.status === 429) {
+          setResetMessage("Too many requests. Please wait before trying again.");
+        } else {
+          setResetMessage(error.message);
         }
-      );
-
-      const data = await response.json();
-
-      if (response.ok) {
+      } else {
         setResetMessage(
-          data.message || "Password reset email sent successfully"
+          "If an account with that email exists, a password reset link has been sent."
         );
         setResetEmail("");
-      } else {
-        setResetMessage(data.detail || "Failed to send password reset email");
       }
-    } catch {
-      setResetMessage(
-        "Failed to send password reset email. Please try again."
-      );
+    } catch (err) {
+      setResetMessage("An unexpected error occurred. Please try again.");
     } finally {
       setIsResetting(false);
     }

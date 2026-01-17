@@ -2,13 +2,11 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch
 import uuid
-import os
 from app.models import Profile
 
 # Use the mock_user fixture from conftest
 mock_user_uuid = uuid.UUID("190fa60a-1ff1-4fa0-abc3-ffac2ed211b1")
 mock_profile_uuid = uuid.UUID("290fa60a-1ff1-4fa0-abc3-ffac2ed211b1")
-FRONTEND_URL = os.getenv("NEXT_PUBLIC_FRONTEND_URL", "http://localhost:3000")
 
 @pytest.fixture(autouse=True)
 def setup_db(db_session, mock_user):
@@ -61,54 +59,3 @@ def test_update_my_profile(client: TestClient, db_session):
     assert db_profile.full_name == "Updated Full Name"
     assert db_profile.has_completed_profile is True
 
-def test_public_request_password_reset_success(client_without_auth: TestClient, mock_supabase_client):
-    """Test that public password reset endpoint works without authentication."""
-    # Use client_without_auth since this is a public endpoint
-    # mock_supabase_client is automatically applied from conftest
-    request_data = {"email": "test@example.com"}
-    response = client_without_auth.post("/api/v1/users/request-password-reset", json=request_data)
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert "message" in data
-    assert "password reset link has been sent" in data["message"].lower()
-    
-    # Verify Supabase was called correctly
-    mock_supabase_client.auth.reset_password_for_email.assert_called_once_with(
-        "test@example.com",
-        {
-            "redirect_to": FRONTEND_URL + "/reset-password"
-        }
-    )
-
-def test_public_request_password_reset_invalid_email(client_without_auth: TestClient):
-    """Test that public password reset endpoint validates email format."""
-    request_data = {"email": "invalid-email"}
-    response = client_without_auth.post("/api/v1/users/request-password-reset", json=request_data)
-    
-    assert response.status_code == 422  # Validation error
-    data = response.json()
-    assert "detail" in data
-
-def test_public_request_password_reset_missing_email(client_without_auth: TestClient):
-    """Test that public password reset endpoint requires email."""
-    request_data = {}
-    response = client_without_auth.post("/api/v1/users/request-password-reset", json=request_data)
-    
-    assert response.status_code == 422  # Validation error
-    data = response.json()
-    assert "detail" in data
-
-def test_public_request_password_reset_handles_supabase_error(client_without_auth: TestClient, mock_supabase_client):
-    """Test that public password reset endpoint handles Supabase errors gracefully."""
-    # Override the mock to raise an exception
-    mock_supabase_client.auth.reset_password_for_email.side_effect = Exception("Supabase error")
-    
-    request_data = {"email": "test@example.com"}
-    response = client_without_auth.post("/api/v1/users/request-password-reset", json=request_data)
-    
-    # Should still return 200 with generic message (security: don't reveal if email exists)
-    assert response.status_code == 200
-    data = response.json()
-    assert "message" in data
-    assert "password reset link has been sent" in data["message"].lower()

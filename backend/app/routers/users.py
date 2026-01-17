@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
 import logging
 from .. import models, schemas, auth
 from ..db import get_db
 from ..services.invitations import InvitationService, get_invitation_service
-import os
 
 router = APIRouter(
     prefix="/api/v1/users/me",
@@ -17,8 +15,6 @@ public_router = APIRouter(
     prefix="/api/v1/users",
     tags=["Users"],
 )
-
-FRONTEND_URL = os.getenv("NEXT_PUBLIC_FRONTEND_URL", "http://localhost:3000")
 
 logger = logging.getLogger(__name__)
 
@@ -189,79 +185,3 @@ async def link_invitation_to_user(
     
     return linked_member
 
-class PasswordResetRequest(BaseModel):
-    email: EmailStr
-
-@router.post(
-    "/reset-password",
-    response_model=dict
-)
-async def request_password_reset(
-    request: PasswordResetRequest,
-    db: Session = Depends(get_db),
-    user: schemas.SupabaseUser = Depends(auth.get_current_user)
-):
-    """
-    Request a password reset email for the current user.
-    This is a self-service endpoint for users to reset their own password.
-    """
-    try:
-        from ..auth import supabase
-        
-        # Verify the email matches the current user
-        if user.email != request.email:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only request password reset for your own account"
-            )
-        
-        # Send password reset email
-        supabase.auth.reset_password_for_email(
-            request.email,
-            {
-                "redirect_to": FRONTEND_URL + "/reset-password"
-            }
-        )
-        
-        logger.info(f"Password reset email requested for {request.email}")
-        return {"message": "Password reset email sent successfully"}
-        
-    except Exception as e:
-        logger.error(f"Error generating password reset link for {request.email}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to send password reset email: {str(e)}"
-        )
-
-@public_router.post(
-    "/request-password-reset",
-    response_model=dict
-)
-async def public_request_password_reset(
-    request: PasswordResetRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Public endpoint to request a password reset email.
-    This is used from the login page when users forget their password.
-    Does not require authentication.
-    """
-    try:
-        from ..auth import supabase
-        
-        # Send password reset email
-        supabase.auth.reset_password_for_email(
-            request.email,
-            {
-                "redirect_to": FRONTEND_URL + "/reset-password"
-            }
-        )
-        
-        logger.info(f"Public password reset email requested for {request.email}")
-        # Don't reveal if email exists or not for security
-        return {"message": "If an account with that email exists, a password reset link has been sent."}
-        
-    except Exception as e:
-        logger.error(f"Error sending password reset email for {request.email}: {str(e)}")
-        # Don't reveal if email exists or not for security
-        return {"message": "If an account with that email exists, a password reset link has been sent."}
