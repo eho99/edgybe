@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import {
   NavigationMenu,
   NavigationMenuList,
@@ -23,6 +24,9 @@ interface HeaderProps {
 }
 
 export function Header({ title, description }: HeaderProps) {
+  const pathname = usePathname()
+  const isDashboard = pathname === "/dashboard"
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
       <div className="flex h-16 items-center justify-between gap-4">
@@ -46,7 +50,7 @@ export function Header({ title, description }: HeaderProps) {
           </NavigationMenu>
         </div>
         <div className="flex items-center gap-3">
-          <ThemeToggle />
+          {isDashboard && <ThemeToggle />}
           <ProfileDropdown />
         </div>
       </div>

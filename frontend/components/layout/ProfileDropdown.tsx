@@ -72,9 +72,9 @@ export function ProfileDropdown({ className }: ProfileDropdownProps) {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className={`flex items-center gap-3 rounded-full border border-border/60 px-2 py-1.5 hover:border-border ${className}`}
+          className={`flex items-center gap-2 rounded-full border border-border/60 px-2 py-1 hover:border-border ${className}`}
         >
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/70 text-base font-semibold text-primary-foreground">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/70 text-sm font-semibold text-primary-foreground shrink-0">
             {userInitials}
           </div>
           <div className="hidden text-left leading-tight sm:flex sm:flex-col">
