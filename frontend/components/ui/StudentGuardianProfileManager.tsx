@@ -167,7 +167,7 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
     if (!editingProfile) return
     const payload: Record<string, string | null> = {}
     Object.entries(formState).forEach(([key, value]) => {
-      if (value !== undefined) {
+      if (typeof value === 'string' && value !== undefined) {
         payload[key] = value === '' ? null : value
       }
     })
