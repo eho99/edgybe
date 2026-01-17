@@ -310,6 +310,7 @@ async def list_referrals(
     location: Optional[str] = Query(None, description="Filter by referral location"),
     created_after: Optional[datetime] = Query(None, description="Filter referrals created on or after this date (ISO8601)"),
     created_before: Optional[datetime] = Query(None, description="Filter referrals created on or before this date (ISO8601)"),
+    assigned_admin_id: Optional[UUID4] = Query(None, description="Filter by assigned administrator ID"),
     db: Session = Depends(get_db),
     member: schemas.AuthenticatedMember = Depends(auth.get_current_active_member)
 ):
@@ -353,6 +354,8 @@ async def list_referrals(
         if created_before.tzinfo is None:
             created_before = created_before.replace(tzinfo=timezone.utc)
         query = query.filter(models.Referral.created_at <= created_before)
+    if assigned_admin_id:
+        query = query.filter(models.Referral.assigned_admin_id == assigned_admin_id)
     
     # Filter by grade level if provided (using subquery to avoid duplicate rows)
     if grade_level:

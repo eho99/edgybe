@@ -238,7 +238,7 @@ export function AssignmentConfigEditor({
       </div>
 
       {assignmentType === 'grade' && (
-        <div className="space-y-4 rounded-lg border p-4">
+        <div className="space-y-4 rounded-lg border-2 border-border/80 bg-background p-4 shadow-sm">
           <div>
             <h4 className="text-sm font-semibold">Grade Level Mappings</h4>
             <p className="text-xs text-muted-foreground">
@@ -247,7 +247,7 @@ export function AssignmentConfigEditor({
           </div>
           
           {/* Add new grade mapping */}
-          <div className="space-y-3 rounded-md border bg-muted/50 p-4">
+          <div className="space-y-3 rounded-md border-2 border-border/60 bg-muted/30 p-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="grade-input" className="text-xs">
@@ -309,7 +309,7 @@ export function AssignmentConfigEditor({
                     return (
                       <div
                         key={grade}
-                        className="flex items-center justify-between rounded-md border bg-background px-3 py-2"
+                        className="flex items-center justify-between rounded-md border-2 border-border/60 bg-background px-3 py-2 shadow-sm"
                       >
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-medium">Grade {grade}</span>
@@ -336,7 +336,7 @@ export function AssignmentConfigEditor({
       )}
 
       {assignmentType === 'alphabetical' && (
-        <div className="space-y-4 rounded-lg border p-4">
+        <div className="space-y-4 rounded-lg border-2 border-border/80 bg-background p-4 shadow-sm">
           <div className="space-y-2">
             <Label htmlFor="name-field">Name Field</Label>
             <Select
@@ -366,7 +366,7 @@ export function AssignmentConfigEditor({
           </div>
           
           {/* Add new letter range mapping */}
-          <div className="space-y-3 rounded-md border bg-muted/50 p-4">
+          <div className="space-y-3 rounded-md border-2 border-border/60 bg-muted/30 p-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="range-input" className="text-xs">
@@ -428,7 +428,7 @@ export function AssignmentConfigEditor({
                     return (
                       <div
                         key={range}
-                        className="flex items-center justify-between rounded-md border bg-background px-3 py-2"
+                        className="flex items-center justify-between rounded-md border-2 border-border/60 bg-background px-3 py-2 shadow-sm"
                       >
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-medium">{range}</span>

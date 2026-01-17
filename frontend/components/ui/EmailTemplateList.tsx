@@ -85,8 +85,9 @@ export function EmailTemplateList({ orgId, isAdmin }: EmailTemplateListProps) {
         )}
       </div>
 
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-lg border-2 border-border/80 bg-background shadow-sm">
+        <div className="rounded-md">
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
@@ -180,6 +181,7 @@ export function EmailTemplateList({ orgId, isAdmin }: EmailTemplateListProps) {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
     </div>
   )

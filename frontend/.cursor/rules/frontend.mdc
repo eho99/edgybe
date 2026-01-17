@@ -106,3 +106,31 @@ Your design philosophy prioritizes:
   3. Local Components  
   4. Utils/Hooks
 
+---
+
+## UI/UX Design Guidelines
+
+### Visual Hierarchy & Borders
+
+When creating list views, table views, or filter sections, follow these consistent design principles:
+
+#### Filter Sections
+- **Container**: Use `border-2 border-border/80 bg-muted/30 p-4 shadow-sm rounded-lg`
+- **Section Header**: Include a title (`text-sm font-semibold text-foreground`) and optional description (`text-xs text-muted-foreground`)
+- **Inputs/Selects**: Add `bg-background` class to ensure visibility against the muted background
+- **Labels**: Use `text-sm font-medium text-foreground` for better visibility (not `text-xs text-muted-foreground`)
+
+#### Table/Content Sections
+- **Container**: Use `border-2 border-border/80 bg-background shadow-sm rounded-lg`
+- **Inner Table Wrapper**: Wrap the `<Table>` component in a `rounded-md` div for proper border radius
+- **Pagination**: Use `border-t border-border/60 px-4 py-3` for separation with proper padding
+
+#### Checkbox Containers
+- When checkboxes are in filter-like containers, use: `border-2 border-border/60 bg-background shadow-sm rounded-md px-3 py-2`
+
+#### Principles
+- **Consistency**: All filter sections and table containers should use the same border thickness (`border-2`) and opacity (`border-border/80` for main containers, `border-border/60` for separators)
+- **Visibility**: Ensure sufficient contrast between containers and backgrounds
+- **Grouping**: Use visual containers to group related functionality (filters, tables, pagination)
+- **Spacing**: Maintain consistent padding (`p-4` for filter sections, `px-4 py-3` for pagination)
+

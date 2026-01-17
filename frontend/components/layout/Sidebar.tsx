@@ -77,20 +77,21 @@ function NavSection({ title, items }: { title?: string; items: NavItem[] }) {
 }
 
 export function AppSidebar() {
-  const { isAdmin } = useCurrentUserRole()
+  const { isAdmin, memberships } = useCurrentUserRole()
+  const schoolName = memberships?.[0]?.organization_name || "AdminReferral"
 
   return (
     <>
       <SidebarShell collapsible="icon" className="border-border/60">
         <SidebarHeader className="border-b border-border/60">
-          <Link href="/dashboard" className="flex items-center gap-3 px-2 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+          <Link href="/dashboard" className="flex items-center gap-3 px-2 py-3 group-data-[collapsible=icon]:justify-center">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary text-primary-foreground shrink-0">
               <LayoutDashboard className="h-4 w-4" />
             </div>
-            <div className="flex flex-col text-sm font-semibold">
-              <span>EdgyBe</span>
+            <div className="flex flex-col text-sm font-semibold group-data-[collapsible=icon]:hidden">
+              <span>{schoolName}</span>
               <span className="text-xs font-normal text-muted-foreground">
-                District Console
+                AdminReferral
               </span>
             </div>
           </Link>
@@ -100,8 +101,10 @@ export function AppSidebar() {
           <NavSection title="Referrals" items={referralNavItems} />
           {isAdmin && <NavSection title="Admin" items={adminNavItems} />}
         </SidebarContent>
-        <SidebarFooter className="border-t border-border/60 text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} EdgyBe
+        <SidebarFooter className="border-t border-border/60 text-xs text-muted-foreground px-2">
+          <div className="text-left">
+            &copy; {new Date().getFullYear()} AdminReferral
+          </div>
         </SidebarFooter>
       </SidebarShell>
       <SidebarRail />

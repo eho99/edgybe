@@ -178,30 +178,38 @@ export function AccountList({ orgId }: AccountListProps) {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search by email or name..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
+          <div className="mb-6 rounded-lg border-2 border-border/80 bg-muted/30 p-4 shadow-sm">
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-foreground">Filters</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Showing active accounts by default. Choose "All Status" to include archived (inactive) members.
+              </p>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active Only</SelectItem>
-                <SelectItem value="inactive">Inactive Only</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Search by email or name..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-10 bg-background"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-48 bg-background">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active Only</SelectItem>
+                  <SelectItem value="inactive">Inactive Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Showing active accounts by default. Choose “All Status” to include archived (inactive) members.
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Showing active accounts by default. Choose “All Status” to include archived (inactive) members.
-          </p>
 
           {/* Error Alert */}
           {error && (
@@ -212,90 +220,91 @@ export function AccountList({ orgId }: AccountListProps) {
           )}
 
           {/* Table */}
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined Date</TableHead>
-                  <TableHead className="w-12">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {accounts.length === 0 ? (
+          <div className="rounded-lg border-2 border-border/80 bg-background shadow-sm">
+            <div className="rounded-md">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                      No accounts found
-                    </TableCell>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined Date</TableHead>
+                    <TableHead className="w-12">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  accounts.map((account) => (
-                    <TableRow key={account.id}>
-                      <TableCell className="font-medium">
-                        {getDisplayEmail(account)}
-                      </TableCell>
-                      <TableCell>{getDisplayName(account)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {account.role.charAt(0).toUpperCase() + account.role.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(account.status)}</TableCell>
-                      <TableCell>{formatDate(account.joined_at)}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteAccount(account)}
-                          disabled={deleting && accountToDelete?.id === account.id}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          {deleting && accountToDelete?.id === account.id ? (
-                            <Loader size="sm" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </Button>
+                </TableHeader>
+                <TableBody>
+                  {accounts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        No accounts found
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-gray-600">
-                Showing {((page - 1) * 10) + 1} to {Math.min(page * 10, total)} of {total} accounts
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(page - 1)}
-                  disabled={page === 1}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(page + 1)}
-                  disabled={page === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
+                  ) : (
+                    accounts.map((account) => (
+                      <TableRow key={account.id}>
+                        <TableCell className="font-medium">
+                          {getDisplayEmail(account)}
+                        </TableCell>
+                        <TableCell>{getDisplayName(account)}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {account.role.charAt(0).toUpperCase() + account.role.slice(1)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(account.status)}</TableCell>
+                        <TableCell>{formatDate(account.joined_at)}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteAccount(account)}
+                            disabled={deleting && accountToDelete?.id === account.id}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            {deleting && accountToDelete?.id === account.id ? (
+                              <Loader size="sm" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </div>
-          )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-border/60 px-4 py-3">
+                <div className="text-sm text-muted-foreground">
+                  Showing {((page - 1) * 10) + 1} to {Math.min(page * 10, total)} of {total} accounts
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(page - 1)}
+                    disabled={page === 1}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(page + 1)}
+                    disabled={page === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
   )
 }
-

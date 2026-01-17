@@ -51,82 +51,82 @@
 :root {
   --radius: 0.625rem;
   /* Light Mode: "The Clean Classroom" */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.15 0.01 250);
-  --card: oklch(0.98 0.002 250);
-  --card-foreground: oklch(0.15 0.01 250);
-  --popover: oklch(0.98 0.002 250);
-  --popover-foreground: oklch(0.15 0.01 250);
-  --primary: oklch(0.623 0.195 264.38);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.75 0.15 70);
-  --secondary-foreground: oklch(0.15 0.01 250);
-  --muted: oklch(0.98 0.002 250);
-  --muted-foreground: oklch(0.55 0.01 250);
-  --accent: oklch(0.7 0.15 160);
-  --accent-foreground: oklch(0.985 0 0);
-  --success: oklch(0.7 0.15 160);
-  --success-foreground: oklch(0.985 0 0);
+  --background: oklch(0.98 0 0);
+  --foreground: oklch(0.15 0 0);
+  --card: oklch(0.95 0.05 245);
+  --card-foreground: oklch(0.15 0 0);
+  --popover: oklch(0.95 0.05 245);
+  --popover-foreground: oklch(0.15 0 0);
+  --primary: oklch(0.497 0.563 238);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.70 0.12 280);
+  --secondary-foreground: oklch(0.15 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.50 0 0);
+  --accent: oklch(0.85 0.15 238);
+  --accent-foreground: oklch(0.15 0 0);
+  --success: oklch(0.65 0.15 150);
+  --success-foreground: oklch(0.98 0 0);
   --warning: oklch(0.75 0.15 70);
-  --warning-foreground: oklch(0.15 0.01 250);
+  --warning-foreground: oklch(0.15 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.005 250);
-  --input: oklch(0.92 0.005 250);
-  --ring: oklch(0.623 0.195 264.38);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.90 0 0);
+  --input: oklch(0.90 0 0);
+  --ring: oklch(0.497 0.563 238);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.98 0.002 250);
-  --sidebar-foreground: oklch(0.15 0.01 250);
-  --sidebar-primary: oklch(0.623 0.195 264.38);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.7 0.15 160);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.92 0.005 250);
-  --sidebar-ring: oklch(0.623 0.195 264.38);
+  --sidebar: oklch(0.96 0 0);
+  --sidebar-foreground: oklch(0.15 0 0);
+  --sidebar-primary: oklch(0.497 0.563 238);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.85 0.15 238);
+  --sidebar-accent-foreground: oklch(0.15 0 0);
+  --sidebar-border: oklch(0.90 0 0);
+  --sidebar-ring: oklch(0.497 0.563 238);
 }
 
 .dark {
   /* Dark Mode: "The Midnight Library" */
-  --background: oklch(0.05 0.005 250);
-  --foreground: oklch(0.98 0.002 250);
-  --card: oklch(0.25 0.01 250);
-  --card-foreground: oklch(0.98 0.002 250);
-  --popover: oklch(0.25 0.01 250);
-  --popover-foreground: oklch(0.98 0.002 250);
-  --primary: oklch(0.623 0.195 264.38);
-  --primary-foreground: oklch(0.98 0.002 250);
-  --secondary: oklch(0.75 0.15 70);
-  --secondary-foreground: oklch(0.05 0.005 250);
-  --muted: oklch(0.25 0.01 250);
-  --muted-foreground: oklch(0.68 0.01 250);
-  --accent: oklch(0.7 0.15 160);
-  --accent-foreground: oklch(0.98 0.002 250);
-  --success: oklch(0.7 0.15 160);
-  --success-foreground: oklch(0.98 0.002 250);
+  --background: oklch(0.15 0 0);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.22 0.05 217);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.22 0.05 217);
+  --popover-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.497 0.563 238);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.65 0.15 280);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.20 0 0);
+  --muted-foreground: oklch(0.70 0 0);
+  --accent: oklch(0.35 0.25 238);
+  --accent-foreground: oklch(0.98 0 0);
+  --success: oklch(0.70 0.12 150);
+  --success-foreground: oklch(0.15 0 0);
   --warning: oklch(0.75 0.15 70);
-  --warning-foreground: oklch(0.05 0.005 250);
+  --warning-foreground: oklch(0.15 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.98 0.002 250);
-  --border: oklch(0.4 0.01 250);
-  --input: oklch(0.4 0.01 250);
-  --ring: oklch(0.623 0.195 264.38);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.25 0 0);
+  --input: oklch(0.25 0 0);
+  --ring: oklch(0.497 0.563 238);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.25 0.01 250);
-  --sidebar-foreground: oklch(0.98 0.002 250);
-  --sidebar-primary: oklch(0.623 0.195 264.38);
-  --sidebar-primary-foreground: oklch(0.98 0.002 250);
-  --sidebar-accent: oklch(0.7 0.15 160);
-  --sidebar-accent-foreground: oklch(0.98 0.002 250);
-  --sidebar-border: oklch(0.4 0.01 250);
-  --sidebar-ring: oklch(0.623 0.195 264.38);
+  --sidebar: oklch(0.18 0 0);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.497 0.563 238);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.35 0.25 238);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.25 0 0);
+  --sidebar-ring: oklch(0.497 0.563 238);
 }
 
 @layer base {
@@ -135,5 +135,48 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@layer utilities {
+  .animate-shimmer {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--muted);
+  }
+  
+  .animate-shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 50%,
+      transparent 100%
+    );
+    animation: shimmer 2s infinite;
+    background-size: 1000px 100%;
+  }
+  
+  .dark .animate-shimmer::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      transparent 100%
+    );
   }
 }

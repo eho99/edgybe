@@ -105,9 +105,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-gray-50">
-      <div className="relative hidden lg:flex items-center justify-center bg-gradient-to-br from-primary/10 via-white to-primary/10 p-12">
-        <div className="absolute inset-0 bg-slate-100 opacity-80" />
+    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
+      <div className="relative hidden lg:flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-primary/10 p-12">
+        <div className="absolute inset-0 bg-card opacity-80" />
         <div className="relative z-10 max-w-lg space-y-6">
           <p className="text-sm uppercase tracking-wide text-primary font-semibold">
             AdminReferral

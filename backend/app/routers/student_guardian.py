@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import UUID4
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_, select
 import logging
 
 from .. import schemas, auth, services, models
@@ -23,40 +23,152 @@ def _list_profiles(
     page: int,
     per_page: int,
     search: str | None = None,
+    grade_level: str | None = None,
 ):
-    query = db.query(models.Profile).join(
-        models.OrganizationMember,
-        models.OrganizationMember.user_id == models.Profile.id,
-    ).filter(
-        models.OrganizationMember.organization_id == org_id,
-        models.OrganizationMember.role == role,
-    ).filter(
-        or_(
-            models.Profile.is_active.is_(None),
-            models.Profile.is_active.is_(True),
-        )
-    )
-
-    if search:
-        like = f"%{search}%"
-        query = query.filter(
+    # Base query with eager loading of relationships
+    if role == models.OrgRole.student:
+        # For students, load guardian relationships
+        query = db.query(models.Profile).join(
+            models.OrganizationMember,
+            models.OrganizationMember.user_id == models.Profile.id,
+        ).options(
+            joinedload(models.Profile.student_relationships).joinedload(models.StudentGuardian.guardian)
+        ).filter(
+            models.OrganizationMember.organization_id == org_id,
+            models.OrganizationMember.role == role,
+        ).filter(
             or_(
-                models.Profile.full_name.ilike(like),
-                models.Profile.student_id.ilike(like),
-                models.Profile.phone.ilike(like),
-                models.Profile.city.ilike(like),
+                models.Profile.is_active.is_(None),
+                models.Profile.is_active.is_(True),
             )
         )
+    else:
+        # For guardians, load student relationships
+        query = db.query(models.Profile).join(
+            models.OrganizationMember,
+            models.OrganizationMember.user_id == models.Profile.id,
+        ).options(
+            joinedload(models.Profile.guardian_relationships).joinedload(models.StudentGuardian.student)
+        ).filter(
+            models.OrganizationMember.organization_id == org_id,
+            models.OrganizationMember.role == role,
+        ).filter(
+            or_(
+                models.Profile.is_active.is_(None),
+                models.Profile.is_active.is_(True),
+            )
+        )
+
+    # Grade level filter (only for students)
+    if grade_level and role == models.OrgRole.student:
+        query = query.filter(models.Profile.grade_level == grade_level)
+
+    # Search filter
+    if search:
+        like = f"%{search}%"
+        if role == models.OrgRole.student:
+            # For students, search in profile fields and guardian names/emails
+            # Use a subquery to find students whose guardians match the search
+            guardian_subq = select(models.StudentGuardian.student_id).join(
+                models.Profile, models.StudentGuardian.guardian_id == models.Profile.id
+            ).where(
+                models.StudentGuardian.organization_id == org_id,
+                or_(
+                    models.Profile.full_name.ilike(like),
+                    models.Profile.email.ilike(like),
+                )
+            ).distinct()
+            
+            query = query.filter(
+                or_(
+                    models.Profile.full_name.ilike(like),
+                    models.Profile.student_id.ilike(like),
+                    models.Profile.phone.ilike(like),
+                    models.Profile.city.ilike(like),
+                    models.Profile.email.ilike(like),
+                    models.Profile.id.in_(guardian_subq),
+                )
+            )
+        else:
+            # For guardians, search in profile fields and student names/emails
+            # Use a subquery to find guardians whose students match the search
+            student_subq = select(models.StudentGuardian.guardian_id).join(
+                models.Profile, models.StudentGuardian.student_id == models.Profile.id
+            ).where(
+                models.StudentGuardian.organization_id == org_id,
+                or_(
+                    models.Profile.full_name.ilike(like),
+                    models.Profile.email.ilike(like),
+                )
+            ).distinct()
+            
+            query = query.filter(
+                or_(
+                    models.Profile.full_name.ilike(like),
+                    models.Profile.phone.ilike(like),
+                    models.Profile.city.ilike(like),
+                    models.Profile.email.ilike(like),
+                    models.Profile.id.in_(student_subq),
+                )
+            )
 
     total = query.count()
     offset = (page - 1) * per_page
     profiles = query.order_by(models.Profile.full_name.asc()).offset(offset).limit(per_page).all()
     total_pages = (total + per_page - 1) // per_page
 
-    profile_schemas = [
-        schemas.ProfileSchema.model_validate(profile)
-        for profile in profiles
-    ]
+    # Build enhanced profile schemas with related data
+    profile_schemas = []
+    for profile in profiles:
+        base_profile = schemas.ProfileSchema.model_validate(profile)
+        
+        if role == models.OrgRole.student:
+            # Extract guardian information
+            guardians = []
+            for rel in profile.student_relationships:
+                if rel.organization_id == org_id:
+                    guardian = rel.guardian
+                    if guardian:
+                        # Get email from profile or membership
+                        guardian_email = guardian.email
+                        if not guardian_email:
+                            # Check membership for invite_email
+                            guardian_membership = next(
+                                (m for m in guardian.memberships if m.organization_id == org_id),
+                                None
+                            )
+                            if guardian_membership and guardian_membership.invite_email and not guardian_membership.user_id:
+                                guardian_email = guardian_membership.invite_email
+                        
+                        guardians.append(schemas.GuardianInfo(
+                            full_name=guardian.full_name,
+                            email=guardian_email
+                        ))
+            
+            # Create enhanced profile
+            enhanced_profile = schemas.StudentProfileWithGuardians(
+                **base_profile.model_dump(),
+                guardians=guardians
+            )
+            profile_schemas.append(enhanced_profile)
+        else:
+            # Extract student information
+            students = []
+            for rel in profile.guardian_relationships:
+                if rel.organization_id == org_id:
+                    student = rel.student
+                    if student:
+                        students.append(schemas.StudentInfo(
+                            full_name=student.full_name,
+                            email=student.email
+                        ))
+            
+            # Create enhanced profile
+            enhanced_profile = schemas.GuardianProfileWithStudents(
+                **base_profile.model_dump(),
+                students=students
+            )
+            profile_schemas.append(enhanced_profile)
 
     return schemas.ProfileListResponse(
         profiles=profile_schemas,
@@ -72,13 +184,14 @@ async def list_students(
     page: int = Query(1, ge=1),
     per_page: int = Query(10, ge=1, le=100),
     search: str | None = Query(None),
+    grade_level: str | None = Query(None),
     db: Session = Depends(get_db),
     member: schemas.AuthenticatedMember = Depends(auth.require_active_role),
 ):
     """
-    List students in the organization with optional search.
+    List students in the organization with optional search and grade level filter.
     Admin, Secretary, and Staff can access this endpoint.
-    Search supports filtering by name, student_id, phone, or city.
+    Search supports filtering by name, student_id, phone, city, email, or guardian name/email.
     """
     return _list_profiles(
         db=db,
@@ -87,6 +200,7 @@ async def list_students(
         page=page,
         per_page=per_page,
         search=search,
+        grade_level=grade_level,
     )
 
 @router.get("/guardians", response_model=schemas.ProfileListResponse)
@@ -98,6 +212,10 @@ async def list_guardians(
     db: Session = Depends(get_db),
     admin_member: schemas.AuthenticatedMember = Depends(auth.require_admin_role),
 ):
+    """
+    List guardians in the organization with optional search.
+    Search supports filtering by name, phone, city, email, or student name/email.
+    """
     return _list_profiles(
         db=db,
         org_id=org_id,

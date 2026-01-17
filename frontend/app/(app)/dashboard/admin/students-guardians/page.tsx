@@ -49,7 +49,7 @@ export default function StudentsGuardiansPage() {
           Create and manage student and guardian relationships.
         </p>
       </div>
-      <Card>
+      <Card className="border-2 border-border/80 shadow-sm">
         <CardHeader>
           <CardTitle>Create Student-Guardian Relationship</CardTitle>
           <CardDescription>
@@ -60,7 +60,7 @@ export default function StudentsGuardiansPage() {
           <CreateStudentGuardianForm orgId={orgId} />
         </CardContent>
       </Card>
-      <Card>
+      <Card className="border-2 border-border/80 shadow-sm">
         <CardHeader>
           <CardTitle>Manage Profiles</CardTitle>
           <CardDescription>Edit existing student and guardian records.</CardDescription>

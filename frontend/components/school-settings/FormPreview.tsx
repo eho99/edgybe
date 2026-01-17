@@ -21,7 +21,7 @@ export function FormPreview({ entries }: FormPreviewProps) {
 
   if (meaningfulEntries.length === 0) {
     return (
-      <Card className="border-muted">
+      <Card className="border-2 border-border/80 shadow-sm">
         <CardHeader>
           <CardTitle>Form Preview</CardTitle>
           <CardDescription>Configure preset fields above to see a preview of your referral form.</CardDescription>
