@@ -223,8 +223,9 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
         </div>
       </div>
 
-      <div className="border rounded-md">
-        <Table>
+      <div className="rounded-lg border-2 border-border/80 bg-background shadow-sm">
+        <div className="rounded-md">
+          <Table>
           <TableHeader>
             <TableRow>
               {columns.map((col) => (
@@ -316,6 +317,7 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -363,7 +365,7 @@ function ProfileEditForm({
   }
 
   return (
-    <div className="space-y-4 rounded-md border bg-muted/30 p-4">
+    <div className="space-y-4 rounded-md border-2 border-border/60 bg-muted/30 p-4 shadow-sm">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Full Name</Label>

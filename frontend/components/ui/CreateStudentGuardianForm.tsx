@@ -21,44 +21,44 @@ export function CreateStudentGuardianForm({ orgId, onSuccess }: CreateStudentGua
   const [activeTab, setActiveTab] = useState<'single' | 'bulk' | 'csv'>('single')
   
   return (
-    <Card>
-      <CardHeader>
+    <Card className="border-0 shadow-none bg-transparent">
+      <CardHeader className="px-0 pt-0">
         <CardTitle>Create Student & Guardian Profiles</CardTitle>
         <CardDescription>
           Create student and guardian profiles without requiring login accounts.
           These are data records that can be linked together.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-0">
         {/* Tab Navigation */}
-        <div className="border-b border-gray-200 mb-4">
+        <div className="border-b border-border/60 mb-4">
           <nav className="-mb-px flex space-x-8">
             <button
               onClick={() => setActiveTab('single')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'single'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border/60'
               }`}
             >
               Single
             </button>
             <button
               onClick={() => setActiveTab('bulk')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'bulk'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border/60'
               }`}
             >
               Bulk
             </button>
             <button
               onClick={() => setActiveTab('csv')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'csv'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border/60'
               }`}
             >
               CSV Upload
@@ -269,7 +269,7 @@ function SingleCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-2 gap-6">
         {/* Student Section */}
-        <div className="space-y-4">
+        <div className="space-y-4 rounded-lg border-2 border-border/80 bg-background p-4 shadow-sm">
           <h3 className="font-semibold text-lg">Student</h3>
           
           <div className="space-y-2">
@@ -404,7 +404,7 @@ function SingleCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
         </div>
 
         {/* Guardian Section */}
-        <div className="space-y-4">
+        <div className="space-y-4 rounded-lg border-2 border-border/80 bg-background p-4 shadow-sm">
           <h3 className="font-semibold text-lg">Guardian</h3>
           
           <div className="space-y-2">
@@ -519,13 +519,13 @@ function SingleCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
       </div>
 
       {linkImmediately && (
-        <div className="space-y-2">
-          <Label htmlFor="relationship-type">Relationship Type</Label>
+        <div className="space-y-2 rounded-lg border-2 border-border/60 bg-muted/30 p-4 shadow-sm">
+          <Label htmlFor="relationship-type" className="text-sm font-medium text-foreground">Relationship Type</Label>
           <select
             id="relationship-type"
             value={relationshipType}
             onChange={(e) => setRelationshipType(e.target.value)}
-            className="w-full p-2 border rounded"
+            className="w-full p-2 border-2 border-border/60 rounded-lg bg-background shadow-sm"
           >
             <option value="primary">Primary</option>
             <option value="secondary">Secondary</option>
@@ -534,7 +534,7 @@ function SingleCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
         </div>
       )}
 
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 rounded-md border-2 border-border/60 bg-background px-3 py-2 shadow-sm">
         <input
           type="checkbox"
           id="link-immediately"
@@ -542,7 +542,7 @@ function SingleCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () 
           onChange={(e) => setLinkImmediately(e.target.checked)}
           className="rounded"
         />
-        <Label htmlFor="link-immediately">Link student and guardian immediately</Label>
+        <Label htmlFor="link-immediately" className="text-sm font-medium">Link student and guardian immediately</Label>
       </div>
 
       <Button type="submit" disabled={isSubmitting}>
@@ -754,7 +754,7 @@ function BulkCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
         {pairs.map((pair, index) => {
           const isExpanded = expandedPairs[index] ?? true
           return (
-            <Card key={index}>
+            <Card key={index} className="border-2 border-border/80 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm">Pair {index + 1}</CardTitle>
@@ -1005,7 +1005,7 @@ function BulkCreateForm({ orgId, onSuccess }: { orgId: string; onSuccess?: () =>
                       newPairs[index].relationship_type = e.target.value
                       setPairs(newPairs)
                     }}
-                    className="w-full p-2 border rounded"
+                    className="w-full p-2 border-2 border-border/60 rounded-lg bg-background shadow-sm"
                   >
                     <option value="primary">Primary</option>
                     <option value="secondary">Secondary</option>
@@ -1354,9 +1354,9 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-4">
-        <div className="space-y-2">
+        <div className="space-y-2 rounded-lg border-2 border-border/80 bg-background p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <Label htmlFor="csv-file">CSV File</Label>
+            <Label htmlFor="csv-file" className="text-sm font-medium text-foreground">CSV File</Label>
             <Button
               type="button"
               variant="outline"
@@ -1375,9 +1375,9 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
           />
         </div>
 
-        <div className="space-y-2">
-          <Label>CSV Format</Label>
-          <div className="bg-gray-50 border rounded p-3 text-sm">
+        <div className="space-y-2 rounded-lg border-2 border-border/80 bg-background p-4 shadow-sm">
+          <Label className="text-sm font-medium text-foreground">CSV Format</Label>
+          <div className="bg-muted/30 border-2 border-border/60 rounded-lg p-3 text-sm shadow-sm">
             <p className="font-semibold mb-2">Required columns:</p>
             <ul className="list-disc list-inside space-y-1 mb-3">
               <li><code className="bg-white px-1 rounded">student_name</code> - Full name of the student</li>
@@ -1397,7 +1397,7 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
               <li><code className="bg-white px-1 rounded">guardian_preferred_language</code> - Preferred language code</li>
               <li><code className="bg-white px-1 rounded">relationship_type</code> - primary, secondary, or emergency (defaults to primary)</li>
             </ul>
-            <div className="mt-3 pt-3 border-t">
+            <div className="mt-3 pt-3 border-t border-border/60">
               <p className="font-semibold mb-2">Note:</p>
               <p className="text-xs text-gray-600 mb-2">
                 Rows with parsing errors will be skipped, but processing will continue for valid rows.
@@ -1408,9 +1408,9 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
       </div>
 
       {preview.length > 0 && (
-        <div className="space-y-2">
-          <Label>Preview (first 5 rows)</Label>
-          <div className="border rounded p-2 max-h-48 overflow-y-auto">
+        <div className="space-y-2 rounded-lg border-2 border-border/80 bg-background p-4 shadow-sm">
+          <Label className="text-sm font-medium text-foreground">Preview (first 5 rows)</Label>
+          <div className="border-2 border-border/60 rounded-lg bg-muted/30 p-2 max-h-48 overflow-y-auto shadow-sm">
             <table className="w-full text-sm">
               <thead>
                 <tr>
@@ -1438,9 +1438,9 @@ Charlie Brown,11,STU003,,+14155551235,789,Elm St,Peoria,IL,61601,USA,es,Lucy Bro
       )}
 
       {parseErrors.length > 0 && (
-        <div className="space-y-2">
-          <Label>Parsing Errors (non-blocking)</Label>
-          <div className="border rounded p-2 max-h-32 overflow-y-auto bg-yellow-50">
+        <div className="space-y-2 rounded-lg border-2 border-border/80 bg-background p-4 shadow-sm">
+          <Label className="text-sm font-medium text-foreground">Parsing Errors (non-blocking)</Label>
+          <div className="border-2 border-border/60 rounded-lg p-2 max-h-32 overflow-y-auto bg-yellow-50 shadow-sm">
             <ul className="text-sm space-y-1">
               {parseErrors.map((err, i) => (
                 <li key={i} className="text-yellow-800">
