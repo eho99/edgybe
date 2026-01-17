@@ -209,9 +209,9 @@ export const PresetConfigEditor = ({ entries, onChange, disabled }: PresetConfig
         {entries.map((entry) => (
           <div
             key={entry.id}
-            className={`rounded-lg border p-4 shadow-xs ${entry.error ? 'border-destructive' : 'border-border'}`}
+            className={`rounded-lg border-2 p-4 shadow-sm ${entry.error ? 'border-destructive' : 'border-border/80'}`}
           >
-            <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-3 border-b border-border/60 pb-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Field key</p>
                 <p className="font-mono text-sm font-semibold">{entry.key}</p>
@@ -263,7 +263,7 @@ export const PresetConfigEditor = ({ entries, onChange, disabled }: PresetConfig
                   disabled={disabled}
                 />
               </div>
-              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+              <div className="flex items-center gap-2 rounded-md border-2 border-border/60 bg-background px-3 py-2 shadow-sm">
                 <Checkbox
                   id={`required-${entry.id}`}
                   checked={entry.required}
@@ -272,7 +272,7 @@ export const PresetConfigEditor = ({ entries, onChange, disabled }: PresetConfig
                 />
                 <Label htmlFor={`required-${entry.id}`}>Required field</Label>
               </div>
-              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+              <div className="flex items-center gap-2 rounded-md border-2 border-border/60 bg-background px-3 py-2 shadow-sm">
                 <Checkbox
                   id={`allowOther-${entry.id}`}
                   checked={entry.allowOther}
@@ -376,7 +376,7 @@ export const PresetConfigEditor = ({ entries, onChange, disabled }: PresetConfig
         ))}
       </div>
 
-      <div className="rounded-lg border p-4 space-y-2">
+      <div className="rounded-lg border-2 border-border/80 bg-muted/30 p-4 shadow-sm space-y-2">
         <Label htmlFor="new-field-key">Add preset field</Label>
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
           <Input

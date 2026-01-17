@@ -486,7 +486,7 @@ export default function SchoolSettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[300px] items-center justify-center rounded-lg border bg-white">
+      <div className="flex min-h-[300px] items-center justify-center rounded-lg border-2 border-border/80 bg-background shadow-sm">
         <Spinner />
       </div>
     )
@@ -496,7 +496,7 @@ export default function SchoolSettingsPage() {
     const message =
       error instanceof ApiError ? error.message : error instanceof Error ? error.message : 'Failed to load organizations'
     return (
-      <div className="flex min-h-[300px] items-center justify-center rounded-lg border bg-white p-6">
+      <div className="flex min-h-[300px] items-center justify-center rounded-lg border-2 border-border/80 bg-background shadow-sm p-6">
         <Alert variant="destructive" className="max-w-lg">
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{message}</AlertDescription>
@@ -507,7 +507,7 @@ export default function SchoolSettingsPage() {
 
   if (!adminOrganizations.length) {
     return (
-      <div className="rounded-lg border bg-white p-6">
+      <div className="rounded-lg border-2 border-border/80 bg-background shadow-sm p-6">
         <Alert>
           <AlertTitle>Admin access required</AlertTitle>
           <AlertDescription>You must be an organization admin to manage school settings.</AlertDescription>
@@ -533,7 +533,7 @@ export default function SchoolSettingsPage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[320px,1fr]">
-        <Card className="border-muted">
+        <Card className="border-2 border-border/80 shadow-sm">
           <CardHeader>
             <CardTitle>Your Admin Organizations</CardTitle>
             <CardDescription>Select a school to update settings.</CardDescription>
@@ -605,12 +605,12 @@ export default function SchoolSettingsPage() {
               {/* Collapsible Configuration Sections */}
               <Accordion type="multiple" defaultValue={['profile', 'referral', 'assignment']} className="space-y-4">
                 {/* Section 1: School Profile */}
-                <AccordionItem value="profile" className="border rounded-lg px-6">
+                <AccordionItem value="profile" className="border-2 border-border/80 rounded-lg px-6 shadow-sm">
                   <AccordionTrigger className="text-lg font-semibold hover:no-underline py-4">
                     School Profile
                   </AccordionTrigger>
                   <AccordionContent className="pb-6">
-                    <Card className="border-0 shadow-none">
+                    <Card className="border-0 shadow-none bg-transparent">
                       <CardContent className="space-y-6 pt-0">
                         <div className="space-y-4">
                           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Quick Summary</h3>
@@ -671,12 +671,12 @@ export default function SchoolSettingsPage() {
                 </AccordionItem>
 
                 {/* Section 2: Referral Creation Settings */}
-                <AccordionItem value="referral" className="border rounded-lg px-6">
+                <AccordionItem value="referral" className="border-2 border-border/80 rounded-lg px-6 shadow-sm">
                   <AccordionTrigger className="text-lg font-semibold hover:no-underline py-4">
                     Referral Creation Settings
                   </AccordionTrigger>
                   <AccordionContent className="pb-6">
-                    <Card className="border-0 shadow-none">
+                    <Card className="border-0 shadow-none bg-transparent">
                       <CardHeader className="px-0 pt-0">
                         <div className="flex items-start justify-between gap-4">
                           <CardDescription>
@@ -749,12 +749,12 @@ export default function SchoolSettingsPage() {
                 </AccordionItem>
 
                 {/* Section 3: Admin Assignment Settings */}
-                <AccordionItem value="assignment" className="border rounded-lg px-6">
+                <AccordionItem value="assignment" className="border-2 border-border/80 rounded-lg px-6 shadow-sm">
                   <AccordionTrigger className="text-lg font-semibold hover:no-underline py-4">
                     Admin Assignment Settings
                   </AccordionTrigger>
                   <AccordionContent className="pb-6">
-                    <Card className="border-0 shadow-none">
+                    <Card className="border-0 shadow-none bg-transparent">
                       <CardHeader className="px-0 pt-0">
                         <CardDescription>
                           Configure automatic assignment of referrals to admins based on grade level or alphabetical order.
@@ -774,7 +774,7 @@ export default function SchoolSettingsPage() {
               </Accordion>
             </>
           ) : (
-            <Card className="border-muted">
+            <Card className="border-2 border-border/80 shadow-sm">
               <CardContent className="py-12">
                 <p className="text-center text-muted-foreground">Choose an organization from the sidebar to get started.</p>
               </CardContent>
