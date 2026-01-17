@@ -5,6 +5,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -12,10 +19,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { HelpCircle } from 'lucide-react'
 import apiClient from '@/lib/apiClient'
 import { Loader } from '@/components/ui/loader'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
 import { useToast } from '@/hooks/useToast'
+
+interface GuardianInfo {
+  full_name: string | null
+  email: string | null
+}
+
+interface StudentInfo {
+  full_name: string | null
+  email: string | null
+}
 
 interface ProfileRecord {
   id: string
@@ -31,6 +50,8 @@ interface ProfileRecord {
   preferred_language: string | null
   grade_level?: string | null
   student_id?: string | null
+  guardians?: GuardianInfo[]
+  students?: StudentInfo[]
 }
 
 interface ProfileListResponse {
@@ -47,6 +68,7 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
   const [activeTab, setActiveTab] = useState<ProfileRole>('students')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [gradeFilter, setGradeFilter] = useState('')
   const [profiles, setProfiles] = useState<ProfileRecord[]>([])
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -59,11 +81,22 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
 
   const isStudentTab = activeTab === 'students'
 
+  // Extract unique grade levels from profiles
+  const uniqueGrades = useMemo(() => {
+    const grades = new Set<string>()
+    profiles.forEach((profile) => {
+      if (profile.grade_level) {
+        grades.add(profile.grade_level)
+      }
+    })
+    return Array.from(grades).sort()
+  }, [profiles])
+
   useEffect(() => {
     if (!orgId) return
     fetchProfiles()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId, activeTab, page, search])
+  }, [orgId, activeTab, page, search, gradeFilter])
 
   const fetchProfiles = async () => {
     try {
@@ -75,10 +108,20 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
       if (search) {
         params.set('search', search)
       }
-      const response = await apiClient<ProfileListResponse>(
+      if (gradeFilter && isStudentTab) {
+        params.set('grade_level', gradeFilter)
+      }
+      const response = await apiClient<any>(
         `/api/v1/organizations/${orgId}/${activeTab}?${params.toString()}`
       )
-      setProfiles(response.profiles)
+      // The backend returns enhanced profiles with guardians/students arrays
+      // Map the response to ensure guardians/students are properly included
+      const mappedProfiles: ProfileRecord[] = response.profiles.map((profile: any) => ({
+        ...profile,
+        guardians: profile.guardians || [],
+        students: profile.students || [],
+      }))
+      setProfiles(mappedProfiles)
       setTotalPages(response.total_pages)
     } catch (err) {
       handleError(err, { title: 'Failed to load profiles' })
@@ -90,6 +133,11 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
   const handleSearch = () => {
     setPage(1)
     setSearch(searchInput.trim())
+  }
+
+  const handleGradeFilterChange = (value: string) => {
+    setGradeFilter(value === ' ' ? '' : value)
+    setPage(1)
   }
 
   const startEditing = (profile: ProfileRecord) => {
@@ -181,9 +229,9 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
 
   const columns = useMemo(() => {
     if (isStudentTab) {
-      return ['Name', 'Grade / ID', 'Email', 'Phone', 'Location', 'Preferred Lang', '']
+      return ['Name', 'Student ID', 'Grade', 'Email', 'Guardian Name', 'Guardian Email', '']
     }
-    return ['Name', 'Email', 'Phone', 'Location', 'Preferred Lang', '']
+    return ['Name', 'Email', 'Phone Number', 'Preferred Language', '']
   }, [isStudentTab])
 
   return (
@@ -199,27 +247,76 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
                 setActiveTab(tab)
                 setPage(1)
                 setEditingProfile(null)
+                setGradeFilter('')
               }}
             >
               {tab === 'students' ? 'Students' : 'Guardians'}
             </Button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Search by name, phone, city..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSearch()
-              }
-            }}
-            className="w-64"
-          />
-          <Button variant="outline" size="sm" onClick={handleSearch}>
-            Search
-          </Button>
+      </div>
+
+      {/* Filters Section */}
+      <div className="rounded-lg border-2 border-border/80 bg-muted/30 p-4 shadow-sm">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="search" className="text-sm font-medium text-foreground">
+                Search
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {isStudentTab
+                        ? 'Search by name, email, student ID, or guardian name/email'
+                        : 'Search by name, email, or student name/email'}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                id="search"
+                placeholder="Search..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSearch()
+                  }
+                }}
+                className="bg-background flex-1"
+              />
+              <Button variant="outline" size="sm" onClick={handleSearch}>
+                Search
+              </Button>
+            </div>
+          </div>
+          {isStudentTab && (
+            <div className="space-y-2">
+              <Label htmlFor="grade" className="text-sm font-medium text-foreground">
+                Grade Level
+              </Label>
+              <Select value={gradeFilter || ' '} onValueChange={handleGradeFilterChange}>
+                <SelectTrigger id="grade" className="bg-background">
+                  <SelectValue placeholder="All Grades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value=" ">All Grades</SelectItem>
+                  {uniqueGrades.map((grade) => (
+                    <SelectItem key={grade} value={grade}>
+                      {grade}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -258,21 +355,34 @@ export function StudentGuardianProfileManager({ orgId }: { orgId: string }) {
                     <TableRow key={`${profile.id}-row`}>
                       <TableCell className="font-medium">{profile.full_name ?? '—'}</TableCell>
                       {isStudentTab ? (
-                        <TableCell>
-                          <div className="flex flex-col text-sm">
-                            <span>{profile.grade_level ?? '—'}</span>
-                            <span className="text-muted-foreground">{profile.student_id ?? '—'}</span>
-                          </div>
-                      </TableCell>
-                      ) : null}
-                    <TableCell>{profile.email ?? '—'}</TableCell>
-                      <TableCell>{profile.phone ?? '—'}</TableCell>
-                      <TableCell>
-                        {[profile.city, profile.state]
-                          .filter(Boolean)
-                          .join(', ') || '—'}
-                      </TableCell>
-                      <TableCell>{profile.preferred_language ?? '—'}</TableCell>
+                        <>
+                          <TableCell>{profile.student_id ?? '—'}</TableCell>
+                          <TableCell>{profile.grade_level ?? '—'}</TableCell>
+                          <TableCell>{profile.email ?? '—'}</TableCell>
+                          <TableCell>
+                            {profile.guardians && Array.isArray(profile.guardians) && profile.guardians.length > 0
+                              ? profile.guardians
+                                  .map((g: GuardianInfo) => g?.full_name)
+                                  .filter(Boolean)
+                                  .join(', ') || '—'
+                              : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {profile.guardians && Array.isArray(profile.guardians) && profile.guardians.length > 0
+                              ? profile.guardians
+                                  .map((g: GuardianInfo) => g?.email)
+                                  .filter(Boolean)
+                                  .join(', ') || '—'
+                              : '—'}
+                          </TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell>{profile.email ?? '—'}</TableCell>
+                          <TableCell>{profile.phone ?? '—'}</TableCell>
+                          <TableCell>{profile.preferred_language ?? '—'}</TableCell>
+                        </>
+                      )}
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button variant="ghost" size="sm" onClick={() => startEditing(profile)}>

@@ -899,6 +899,453 @@ def test_list_students_endpoint(client: TestClient):
     assert len(data["profiles"]) >= 1
 
 
+def test_list_students_with_guardians_data(client: TestClient, db_session):
+    """Test that listing students includes guardian information"""
+    # Create a link first
+    link = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=mock_guardian_uuid,
+        student_id=mock_student_uuid,
+        relationship_type=GuardianRelationType.primary
+    )
+    db_session.add(link)
+    db_session.commit()
+    
+    url = f"/api/v1/organizations/{mock_org_uuid}/students"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    
+    # Find our student in the results
+    student_profile = next(
+        (p for p in data["profiles"] if p["id"] == str(mock_student_uuid)),
+        None
+    )
+    assert student_profile is not None
+    # Check that guardians array is present
+    assert "guardians" in student_profile
+    assert isinstance(student_profile["guardians"], list)
+    assert len(student_profile["guardians"]) >= 1
+    
+    # Verify guardian data structure
+    guardian = student_profile["guardians"][0]
+    assert "full_name" in guardian
+    assert "email" in guardian
+    assert guardian["full_name"] == "Guardian User"
+    assert guardian["email"] == "guardian@example.com"
+
+
+def test_list_guardians_with_students_data(client: TestClient, db_session):
+    """Test that listing guardians includes student information"""
+    # Create a link first
+    link = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=mock_guardian_uuid,
+        student_id=mock_student_uuid,
+        relationship_type=GuardianRelationType.primary
+    )
+    db_session.add(link)
+    db_session.commit()
+    
+    url = f"/api/v1/organizations/{mock_org_uuid}/guardians"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    
+    # Find our guardian in the results
+    guardian_profile = next(
+        (p for p in data["profiles"] if p["id"] == str(mock_guardian_uuid)),
+        None
+    )
+    assert guardian_profile is not None
+    # Check that students array is present
+    assert "students" in guardian_profile
+    assert isinstance(guardian_profile["students"], list)
+    assert len(guardian_profile["students"]) >= 1
+    
+    # Verify student data structure
+    student = guardian_profile["students"][0]
+    assert "full_name" in student
+    assert "email" in student
+    assert student["full_name"] == "Student User"
+    assert student["email"] == "student@example.com"
+
+
+def test_list_students_with_grade_filter(client: TestClient, db_session):
+    """Test filtering students by grade level"""
+    # Create students with different grades
+    grade_9_student_id = uuid.uuid4()
+    grade_10_student_id = uuid.uuid4()
+    
+    grade_9_profile = Profile(
+        id=grade_9_student_id,
+        full_name="Grade 9 Student",
+        email="grade9@example.com",
+        grade_level="9",
+        student_id="GRADE9_001",
+        is_active=True
+    )
+    grade_10_profile = Profile(
+        id=grade_10_student_id,
+        full_name="Grade 10 Student",
+        email="grade10@example.com",
+        grade_level="10",
+        student_id="GRADE10_001",
+        is_active=True
+    )
+    db_session.add_all([grade_9_profile, grade_10_profile])
+    
+    grade_9_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=grade_9_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    grade_10_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=grade_10_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add_all([grade_9_member, grade_10_member])
+    db_session.commit()
+    
+    # Filter by grade 9
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?grade_level=9"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    # All returned students should be grade 9
+    for profile in data["profiles"]:
+        assert profile["grade_level"] == "9"
+    
+    # Verify our grade 9 student is in results
+    found_grade_9 = any(p["id"] == str(grade_9_student_id) for p in data["profiles"])
+    assert found_grade_9
+    
+    # Filter by grade 10
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?grade_level=10"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    # All returned students should be grade 10
+    for profile in data["profiles"]:
+        assert profile["grade_level"] == "10"
+    
+    # Verify our grade 10 student is in results
+    found_grade_10 = any(p["id"] == str(grade_10_student_id) for p in data["profiles"])
+    assert found_grade_10
+
+
+def test_list_students_search_by_guardian_name(client: TestClient, db_session):
+    """Test searching students by guardian name"""
+    # Create a guardian with a unique name
+    unique_guardian_id = uuid.uuid4()
+    unique_guardian_profile = Profile(
+        id=unique_guardian_id,
+        full_name="Unique Guardian Name",
+        email="unique.guardian@example.com",
+        is_active=True
+    )
+    db_session.add(unique_guardian_profile)
+    
+    unique_guardian_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=unique_guardian_id,
+        role=OrgRole.guardian,
+        status=MemberStatus.active
+    )
+    db_session.add(unique_guardian_member)
+    
+    # Create a student linked to this guardian
+    linked_student_id = uuid.uuid4()
+    linked_student_profile = Profile(
+        id=linked_student_id,
+        full_name="Linked Student",
+        email="linked.student@example.com",
+        grade_level="11",
+        student_id="LINKED_STU_001",
+        is_active=True
+    )
+    db_session.add(linked_student_profile)
+    
+    linked_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=linked_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(linked_student_member)
+    
+    # Create the link
+    link = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=unique_guardian_id,
+        student_id=linked_student_id,
+        relationship_type=GuardianRelationType.primary
+    )
+    db_session.add(link)
+    db_session.commit()
+    
+    # Search by guardian name
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=Unique Guardian"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    # Should find the linked student
+    found_student = any(p["id"] == str(linked_student_id) for p in data["profiles"])
+    assert found_student, "Should find student when searching by guardian name"
+
+
+def test_list_students_search_by_guardian_email(client: TestClient, db_session):
+    """Test searching students by guardian email"""
+    # Create a guardian with a unique email
+    unique_guardian_id = uuid.uuid4()
+    unique_guardian_profile = Profile(
+        id=unique_guardian_id,
+        full_name="Guardian Email Test",
+        email="unique.email@example.com",
+        is_active=True
+    )
+    db_session.add(unique_guardian_profile)
+    
+    unique_guardian_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=unique_guardian_id,
+        role=OrgRole.guardian,
+        status=MemberStatus.active
+    )
+    db_session.add(unique_guardian_member)
+    
+    # Create a student linked to this guardian
+    linked_student_id = uuid.uuid4()
+    linked_student_profile = Profile(
+        id=linked_student_id,
+        full_name="Email Search Student",
+        email="email.search@example.com",
+        grade_level="12",
+        student_id="EMAIL_STU_001",
+        is_active=True
+    )
+    db_session.add(linked_student_profile)
+    
+    linked_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=linked_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(linked_student_member)
+    
+    # Create the link
+    link = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=unique_guardian_id,
+        student_id=linked_student_id,
+        relationship_type=GuardianRelationType.primary
+    )
+    db_session.add(link)
+    db_session.commit()
+    
+    # Search by guardian email
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=unique.email"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    # Should find the linked student
+    found_student = any(p["id"] == str(linked_student_id) for p in data["profiles"])
+    assert found_student, "Should find student when searching by guardian email"
+
+
+def test_list_guardians_search_by_student_name(client: TestClient, db_session):
+    """Test searching guardians by student name"""
+    # Create a student with a unique name
+    unique_student_id = uuid.uuid4()
+    unique_student_profile = Profile(
+        id=unique_student_id,
+        full_name="Unique Student Name",
+        email="unique.student@example.com",
+        grade_level="8",
+        student_id="UNIQUE_STU_001",
+        is_active=True
+    )
+    db_session.add(unique_student_profile)
+    
+    unique_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=unique_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(unique_student_member)
+    
+    # Create a guardian linked to this student
+    linked_guardian_id = uuid.uuid4()
+    linked_guardian_profile = Profile(
+        id=linked_guardian_id,
+        full_name="Linked Guardian",
+        email="linked.guardian@example.com",
+        is_active=True
+    )
+    db_session.add(linked_guardian_profile)
+    
+    linked_guardian_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=linked_guardian_id,
+        role=OrgRole.guardian,
+        status=MemberStatus.active
+    )
+    db_session.add(linked_guardian_member)
+    
+    # Create the link
+    link = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=linked_guardian_id,
+        student_id=unique_student_id,
+        relationship_type=GuardianRelationType.primary
+    )
+    db_session.add(link)
+    db_session.commit()
+    
+    # Search by student name
+    url = f"/api/v1/organizations/{mock_org_uuid}/guardians?search=Unique Student"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    # Should find the linked guardian
+    found_guardian = any(p["id"] == str(linked_guardian_id) for p in data["profiles"])
+    assert found_guardian, "Should find guardian when searching by student name"
+
+
+def test_list_guardians_search_by_student_email(client: TestClient, db_session):
+    """Test searching guardians by student email"""
+    # Create a student with a unique email
+    unique_student_id = uuid.uuid4()
+    unique_student_profile = Profile(
+        id=unique_student_id,
+        full_name="Student Email Test",
+        email="unique.student.email@example.com",
+        grade_level="7",
+        student_id="EMAIL_STU_002",
+        is_active=True
+    )
+    db_session.add(unique_student_profile)
+    
+    unique_student_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=unique_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add(unique_student_member)
+    
+    # Create a guardian linked to this student
+    linked_guardian_id = uuid.uuid4()
+    linked_guardian_profile = Profile(
+        id=linked_guardian_id,
+        full_name="Email Search Guardian",
+        email="email.search.guardian@example.com",
+        is_active=True
+    )
+    db_session.add(linked_guardian_profile)
+    
+    linked_guardian_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=linked_guardian_id,
+        role=OrgRole.guardian,
+        status=MemberStatus.active
+    )
+    db_session.add(linked_guardian_member)
+    
+    # Create the link
+    link = StudentGuardian(
+        organization_id=mock_org_uuid,
+        guardian_id=linked_guardian_id,
+        student_id=unique_student_id,
+        relationship_type=GuardianRelationType.primary
+    )
+    db_session.add(link)
+    db_session.commit()
+    
+    # Search by student email
+    url = f"/api/v1/organizations/{mock_org_uuid}/guardians?search=unique.student.email"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    # Should find the linked guardian
+    found_guardian = any(p["id"] == str(linked_guardian_id) for p in data["profiles"])
+    assert found_guardian, "Should find guardian when searching by student email"
+
+
+def test_list_students_grade_filter_with_search(client: TestClient, db_session):
+    """Test combining grade filter with search"""
+    # Create students with different grades and names
+    grade_9_student_id = uuid.uuid4()
+    grade_10_student_id = uuid.uuid4()
+    
+    grade_9_profile = Profile(
+        id=grade_9_student_id,
+        full_name="Filterable Grade 9",
+        email="filter9@example.com",
+        grade_level="9",
+        student_id="FILTER9_001",
+        is_active=True
+    )
+    grade_10_profile = Profile(
+        id=grade_10_student_id,
+        full_name="Filterable Grade 10",
+        email="filter10@example.com",
+        grade_level="10",
+        student_id="FILTER10_001",
+        is_active=True
+    )
+    db_session.add_all([grade_9_profile, grade_10_profile])
+    
+    grade_9_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=grade_9_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    grade_10_member = OrganizationMember(
+        organization_id=mock_org_uuid,
+        user_id=grade_10_student_id,
+        role=OrgRole.student,
+        status=MemberStatus.active
+    )
+    db_session.add_all([grade_9_member, grade_10_member])
+    db_session.commit()
+    
+    # Search for "Filterable" with grade 9 filter
+    url = f"/api/v1/organizations/{mock_org_uuid}/students?search=Filterable&grade_level=9"
+    response = client.get(url)
+    
+    assert response.status_code == 200
+    data = response.json()
+    # Should only return grade 9 students matching the search
+    for profile in data["profiles"]:
+        assert profile["grade_level"] == "9"
+        assert "Filterable" in profile["full_name"]
+    
+    # Verify our grade 9 student is in results
+    found_grade_9 = any(p["id"] == str(grade_9_student_id) for p in data["profiles"])
+    assert found_grade_9
+    
+    # Verify grade 10 student is NOT in results
+    found_grade_10 = any(p["id"] == str(grade_10_student_id) for p in data["profiles"])
+    assert not found_grade_10
+
+
 def test_list_students_with_search_by_name(client: TestClient, db_session):
     """Test searching students by name"""
     # Create additional student with specific name

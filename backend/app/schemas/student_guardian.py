@@ -135,8 +135,26 @@ class BulkCreatePairsResponse(BaseModel):
     created: int
     pairs: list[dict]  # Each dict has student_profile, guardian_profile, link
 
+class GuardianInfo(BaseModel):
+    """Simplified guardian information for list views"""
+    full_name: str | None
+    email: str | None
+
+class StudentInfo(BaseModel):
+    """Simplified student information for list views"""
+    full_name: str | None
+    email: str | None
+
+class StudentProfileWithGuardians(ProfileSchema):
+    """Profile schema with guardian relationships for students"""
+    guardians: list[GuardianInfo] = []
+
+class GuardianProfileWithStudents(ProfileSchema):
+    """Profile schema with student relationships for guardians"""
+    students: list[StudentInfo] = []
+
 class ProfileListResponse(BaseModel):
-    profiles: list[ProfileSchema]
+    profiles: list[ProfileSchema | StudentProfileWithGuardians | GuardianProfileWithStudents]
     total: int
     page: int
     per_page: int
