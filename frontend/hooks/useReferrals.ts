@@ -280,6 +280,7 @@ export function useReferrals(
         location?: string
         created_after?: string
         created_before?: string
+        assigned_admin_id?: string
     }
 ) {
     // Build query string
